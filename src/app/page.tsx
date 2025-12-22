@@ -24,9 +24,15 @@ export default function Home() {
       if (error) setMessage('Erro: ' + error.message);
       else router.push('/dashboard');
     } else {
-      const { error } = await supabase.auth.signUp({ email, password });
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: 'https://simple-finance-3gen-new.vercel.app/dashboard', // ← AQUI O REDIRECT CERTO
+        },
+      });
       if (error) setMessage('Erro: ' + error.message);
-      else setMessage('Conta criada! Verifique seu e-mail e faça login.');
+      else setMessage('Conta criada! Verifique seu e-mail e clique no link para entrar.');
     }
   };
 
