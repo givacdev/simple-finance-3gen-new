@@ -23,8 +23,10 @@ export default function Dashboard() {
         return;
       }
       setUser(data.session.user);
-      setIsAdmin(data.session.user.user_metadata.role === 'admin');
+      const metadata = data.session.user.user_metadata || {};
+      setIsAdmin(metadata.role === 'admin');
 
+      // Puxa totais (tu pode mudar pra tabela do usuário depois)
       const { data: pagar } = await supabase.from('contas_pagar').select('vl_parcela');
       const { data: receber } = await supabase.from('contas_receber').select('vl_parcela');
 
@@ -61,13 +63,13 @@ export default function Dashboard() {
         </div>
 
         {isAdmin && (
-          <div className="text-center">
-            <p className="text-xl mb-4 text-yellow-300">Área Admin</p>
-            <button className="bg-yellow-600 hover:bg-yellow-700 px-8 py-4 rounded-xl text-xl font-bold mr-4">
+          <div className="text-center bg-gray-800 p-8 rounded-xl">
+            <p className="text-2xl mb-6 text-yellow-300">Área exclusiva Admin</p>
+            <button className="bg-yellow-600 hover:bg-yellow-700 px-8 py-4 rounded-xl text-xl font-bold mr-6">
               Ver Todos os Usuários
             </button>
             <button className="bg-purple-600 hover:bg-purple-700 px-8 py-4 rounded-xl text-xl font-bold">
-              Acesso ao Database
+              Acesso ao Database (em breve)
             </button>
           </div>
         )}
