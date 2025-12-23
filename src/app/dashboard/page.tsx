@@ -13,7 +13,19 @@ export default function Dashboard() {
   const [user, setUser] = useState<any>(null);
   const [totals, setTotals] = useState({ pagar: 0, receber: 0, saldo: 0 });
   const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  const createCheckout = async (priceId: string) => {
+    setLoading(true);
+    const res = await fetch('/api/stripe/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priceId, userId: user.id }),
+    });
+    const { url } = await res.json();
+    window.location.href = url;
+  };
 
   useEffect(() => {
     const checkSession = async () => {
@@ -26,7 +38,7 @@ export default function Dashboard() {
       const metadata = data.session.user.user_metadata || {};
       setIsAdmin(metadata.role === 'admin');
 
-      // Puxa totais (tu pode mudar pra tabela do usuário depois)
+      // Puxa totais (exemplo – tu ajusta pras tabelas reais depois)
       const { data: pagar } = await supabase.from('contas_pagar').select('vl_parcela');
       const { data: receber } = await supabase.from('contas_receber').select('vl_parcela');
 
@@ -61,6 +73,19 @@ export default function Dashboard() {
             <p className="text-6xl font-bold">R$ {totals.saldo.toFixed(2)}</p>
           </div>
         </div>
+
+        {/* Botão Stripe – só aparece pra não-admin ou pra admin testar */}
+        {!isAdmin && (
+          <div className="text-center mb-12">
+            <button
+              onClick={() => createCheckout('price_1Oxxxx')} // tu troca pelo priceId real
+              disabled={loading}
+              className="bg-green-600 hover:bg-green-700 px-12 py-6 rounded-2xl text-2xl font-bold"
+            >
+              {loading ? 'Carregando...' : 'Upgrade Premium – R$47,90 por 12 meses (PIX ou cartão)'}
+            </button>
+          </div>
+        )}
 
         {isAdmin && (
           <div className="text-center bg-gray-800 p-8 rounded-xl">
