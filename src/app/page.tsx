@@ -44,9 +44,14 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4">
           <h1 className="text-6xl font-bold mb-6">Simple Finance 3Gen</h1>
           <p className="text-2xl mb-8">Gestão financeira simples, bonita e poderosa para o seu dia a dia</p>
-          <button onClick={() => setShowForm(true)} className="bg-white text-purple-600 px-10 py-5 rounded-full font-bold text-xl hover:bg-gray-100">
-            Comece Grátis Agora
-          </button>
+          <div className="flex justify-center gap-6">
+            <button onClick={() => { setShowForm(true); setIsLogin(false); }} className="bg-white text-purple-600 px-10 py-5 rounded-full font-bold text-xl hover:bg-gray-100">
+              Comece Grátis Agora
+            </button>
+            <button onClick={() => { setShowForm(true); setIsLogin(true); }} className="bg-transparent border-2 border-white text-white px-10 py-5 rounded-full font-bold text-xl hover:bg-white/10">
+              Já tem conta? Entrar
+            </button>
+          </div>
         </div>
       </section>
 
@@ -71,8 +76,29 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Pricing */}
+      {/* Depoimentos */}
       <section className="py-20 bg-gray-900">
+        <div className="max-w-7xl mx-auto px-4 text-center">
+          <h2 className="text-5xl font-bold mb-12">O que nossos usuários dizem</h2>
+          <div className="grid md:grid-cols-3 gap-12">
+            <div className="bg-gray-800 p-8 rounded-2xl">
+              <p className="text-xl italic mb-6">"Finalmente controlei minhas contas! O dashboard é perfeito."</p>
+              <p className="font-bold">Maria Silva – Empreendedora</p>
+            </div>
+            <div className="bg-gray-800 p-8 rounded-2xl">
+              <p className="text-xl italic mb-6">"Relatórios em PDF mudaram minha prestação de contas."</p>
+              <p className="font-bold">João Santos – Contador</p>
+            </div>
+            <div className="bg-gray-800 p-8 rounded-2xl">
+              <p className="text-xl italic mb-6">"A oferta de lançamento valeu cada centavo!"</p>
+              <p className="font-bold">Ana Costa – Consultora</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section className="py-20">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <h2 className="text-5xl font-bold mb-12">Planos Simples e Transparentes</h2>
           <div className="grid md:grid-cols-3 gap-12">
@@ -121,9 +147,14 @@ export default function Home() {
       <section className="py-20 bg-gradient-to-r from-blue-600 to-purple-600 text-center">
         <div className="max-w-7xl mx-auto px-4">
           <h2 className="text-5xl font-bold mb-8">Pronto para transformar sua vida financeira?</h2>
-          <button onClick={() => setShowForm(true)} className="bg-white text-purple-600 px-12 py-6 rounded-full font-bold text-2xl hover:bg-gray-100">
-            Comece Grátis Agora
-          </button>
+          <div className="flex justify-center gap-6">
+            <button onClick={() => { setShowForm(true); setIsLogin(false); }} className="bg-white text-purple-600 px-12 py-6 rounded-full font-bold text-2xl hover:bg-gray-100">
+              Comece Grátis Agora
+            </button>
+            <button onClick={() => { setShowForm(true); setIsLogin(true); }} className="bg-transparent border-2 border-white text-white px-12 py-6 rounded-full font-bold text-2xl hover:bg-white/10">
+              Já tem conta? Entrar
+            </button>
+          </div>
         </div>
       </section>
 
