@@ -15,12 +15,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body className={inter.className + " bg-gray-950 text-white"}>
-        <Sidebar />
-        <div className="ml-64 min-h-screen">
-          {children}
-        </div>
-      </body>
+      <body className={inter.className}>{children}</body>
     </html>
   );
 }
