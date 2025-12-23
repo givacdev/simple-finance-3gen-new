@@ -1,14 +1,10 @@
-import './globals.css';
+import '../globals.css';
 import { Inter } from 'next/font/google';
+import Sidebar from '../components/Sidebar';
 
 const inter = Inter({ subsets: ['latin'] });
 
-export const metadata = {
-  title: 'Simple Finance 3Gen',
-  description: 'Finanças pessoais simples, bonitas e poderosas',
-};
-
-export default function RootLayout({
+export default function AuthenticatedLayout({
   children,
 }: {
   children: React.ReactNode;
