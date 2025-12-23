@@ -1,12 +1,12 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
+import './globals.css';
+import { Inter } from 'next/font/google';
+import Sidebar from './components/Sidebar';
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ['latin'] });
 
-export const metadata: Metadata = {
-  title: "Simple Finance 3Gen",
-  description: "Finanças pessoais simples, bonitas e poderosas",
+export const metadata = {
+  title: 'Simple Finance 3Gen',
+  description: 'Finanças pessoais simples, bonitas e poderosas',
 };
 
 export default function RootLayout({
@@ -16,7 +16,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body className={inter.className}>{children}</body>
+      <body className={inter.className + " bg-gray-950 text-white"}>
+        <Sidebar />
+        <div className="ml-64 min-h-screen">
+          {children}
+        </div>
+      </body>
     </html>
   );
 }
