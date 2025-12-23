@@ -17,6 +17,7 @@ export default function Dashboard() {
   const router = useRouter();
 
   const createCheckout = async (priceId: string) => {
+    if (!user) return; // segurança extra
     setLoading(true);
     const res = await fetch('/api/stripe/checkout', {
       method: 'POST',
@@ -24,7 +25,8 @@ export default function Dashboard() {
       body: JSON.stringify({ priceId, userId: user.id }),
     });
     const { url } = await res.json();
-    window.location.href = url;
+    if (url) window.location.href = url;
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -34,11 +36,11 @@ export default function Dashboard() {
         router.push('/');
         return;
       }
-      setUser(data.session.user);
-      const metadata = data.session.user.user_metadata || {};
+      const currentUser = data.session.user;
+      setUser(currentUser);
+      const metadata = currentUser.user_metadata || {};
       setIsAdmin(metadata.role === 'admin');
 
-      // Puxa totais (exemplo – tu ajusta pras tabelas reais depois)
       const { data: pagar } = await supabase.from('contas_pagar').select('vl_parcela');
       const { data: receber } = await supabase.from('contas_receber').select('vl_parcela');
 
@@ -50,7 +52,7 @@ export default function Dashboard() {
     checkSession();
   }, [router]);
 
-  if (!user) return null;
+  if (!user) return <p className="text-center text-white">Carregando...</p>;
 
   return (
     <div className="min-h-screen bg-gray-950 text-white p-8">
@@ -74,11 +76,10 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Botão Stripe – só aparece pra não-admin ou pra admin testar */}
         {!isAdmin && (
           <div className="text-center mb-12">
             <button
-              onClick={() => createCheckout('price_1Oxxxx')} // tu troca pelo priceId real
+              onClick={() => createCheckout('price_1Oxxxxxx')} // troca pelo teu priceId real do Stripe
               disabled={loading}
               className="bg-green-600 hover:bg-green-700 px-12 py-6 rounded-2xl text-2xl font-bold"
             >
