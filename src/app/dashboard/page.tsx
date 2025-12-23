@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,7 +28,6 @@ export default function Dashboard() {
       const metadata = currentUser.user_metadata || {};
       setIsAdmin(metadata.role === 'admin');
 
-      // Puxa totais reais do usuário (tu cria as tabelas contas_pagar e contas_receber por usuário depois)
       const userId = currentUser.id;
       const { data: pagar } = await supabase
         .from('contas_pagar')
@@ -57,6 +57,19 @@ export default function Dashboard() {
           <p className="text-xl text-gray-400">Aqui está o resumo das suas finanças hoje</p>
           {isAdmin && <p className="text-lg text-yellow-400 mt-4">Você é ADMIN – acesso total ativado</p>}
         </header>
+
+        {/* Menu de navegação */}
+        <nav className="mb-12 flex gap-6">
+          <Link href="/dashboard" className="bg-gray-800 px-6 py-3 rounded-xl font-bold hover:bg-gray-700">
+            Dashboard
+          </Link>
+          <Link href="/lancamentos" className="bg-blue-600 px-6 py-3 rounded-xl font-bold hover:bg-blue-700">
+            Lançamentos
+          </Link>
+          <Link href="/relatorios" className="bg-gray-800 px-6 py-3 rounded-xl font-bold hover:bg-gray-700">
+            Relatórios (em breve)
+          </Link>
+        </nav>
 
         <div className="grid md:grid-cols-3 gap-8 mb-16">
           <div className="bg-red-900/30 p-8 rounded-2xl border border-red-800">
