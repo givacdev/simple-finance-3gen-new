@@ -285,22 +285,22 @@ export default function NovaContaReceber() {
           <button onClick={() => router.back()} className="px-8 py-4 rounded-xl font-bold text-xl">
             Cancelar
           </button>
-          <button onClick={handleSubmit} className="bg-red-600 hover:bg-red-700 px-8 py-4 rounded-xl font-bold text-xl">
+          <button onClick={handleSubmit} className="bg-green-600 hover:bg-green-700 px-8 py-4 rounded-xl font-bold text-xl">
             Salvar
           </button>
         </div>
       </div>
 
-      {modalNovoFornecedor && (
+      {modalNovoCliente && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
           <div className="bg-gray-900 p-8 rounded-2xl max-w-md w-full">
-            <h2 className="text-3xl font-bold mb-6">Novo Fornecedor</h2>
+            <h2 className="text-3xl font-bold mb-6">Novo Cliente</h2>
             <input placeholder="Nome completo *" value={novoNome} onChange={(e) => setNovoNome(e.target.value)} className="w-full p-4 mb-4 bg-gray-800 rounded-lg" />
             <input placeholder="Código (4 caracteres - letras e números) *" value={novoCodigo} onChange={(e) => handleCodigoChange(e.target.value)} className="w-full p-4 mb-8 bg-gray-800 rounded-lg" />
             <div className="flex justify-end gap-4">
-              <button onClick={() => setModalNovoFornecedor(false)} className="px-6 py-3 rounded-xl font-bold">Cancelar</button>
-              <button onClick={handleNovoFornecedor} className="bg-red-600 px-6 py-3 rounded-xl font-bold">
-                Salvar Fornecedor
+              <button onClick={() => setModalNovoCliente(false)} className="px-6 py-3 rounded-xl font-bold">Cancelar</button>
+              <button onClick={handleNovoCliente} className="bg-green-600 px-6 py-3 rounded-xl font-bold">
+                Salvar Cliente
               </button>
             </div>
           </div>
