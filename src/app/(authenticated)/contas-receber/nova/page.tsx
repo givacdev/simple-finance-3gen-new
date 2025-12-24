@@ -47,7 +47,7 @@ export default function NovaContaReceber() {
   };
 
   const handleFaturaChange = (value: string) => {
-    const filtered = value.replace(/[^A-Z0-9/-]/g, '').toUpperCase();
+    const filtered = value.replace(/[^a-zA-Z0-9/-]/g, '').toUpperCase();
     setFatura(filtered);
   };
 
@@ -73,40 +73,56 @@ export default function NovaContaReceber() {
   };
 
   const handleSubmit = async () => {
-    if (!clienteId || !valorTotal || Number(valorTotal) <= 0 || !parcelas) return;
-
-    const valores = calcularParcelas();
-    const numParcelas = Number(parcelas);
-    let dataVenc = new Date(primeiroVencimento);
-
-    for (let i = 0; i < numParcelas; i++) {
-      await supabase.from('contas_receber').insert({
-        user_id: user.id,
-        cliente_id: clienteId,
-        fatura,
-        valor_total: Number(valorTotal),
-        parcelas: numParcelas,
-        parcela_atual: i + 1,
-        valor_parcela: Number(valores[i]),
-        data_vencimento: dataVenc.toISOString().split('T')[0],
-        observacoes,
-      });
-
-      if (tipoParcelamento === 'fixo') {
-        dataVenc.setDate(dataVenc.getDate() + Number(intervaloDias));
-      }
+    if (!clienteId || !valorTotal || Number(valorTotal) <= 0 || !parcelas) {
+      alert('Preencha todos os campos obrigatórios');
+      return;
     }
 
-    router.push('/contas-receber');
+    try {
+      const valores = calcularParcelas();
+      const numParcelas = Number(parcelas);
+      let dataVenc = new Date(primeiroVencimento + 'T12:00:00');
+
+      for (let i = 0; i < numParcelas; i++) {
+        const dataStr = dataVenc.toISOString().split('T')[0];
+        const { error } = await supabase.from('contas_receber').insert({
+          user_id: user.id,
+          cliente_id: clienteId,
+          fatura,
+          valor_total: Number(valorTotal),
+          parcelas: numParcelas,
+          parcela_atual: i + 1,
+          valor_parcela: Number(valores[i]),
+          data_vencimento: dataStr,
+          observacoes,
+        });
+
+        if (error) throw error;
+
+        if (tipoParcelamento === 'fixo') {
+          dataVenc.setDate(dataVenc.getDate() + Number(intervaloDias));
+        }
+      }
+
+      router.push('/contas-receber');
+    } catch (error: any) {
+      alert('Erro ao salvar: ' + error.message);
+    }
   };
 
   const handleNovoCliente = async () => {
     if (novoNome && novoCodigo.length === 4) {
-      const { data } = await supabase.from('clientes').insert({
+      const { data, error } = await supabase.from('clientes').insert({
         user_id: user.id,
         nome: novoNome,
         codigo: novoCodigo,
       }).select();
+
+      if (error) {
+        alert('Erro ao salvar cliente: ' + error.message);
+        return;
+      }
+
       if (data) {
         setClientes([...clientes, data[0]]);
         setClienteId(data[0].id);
@@ -114,6 +130,8 @@ export default function NovaContaReceber() {
         setNovoNome('');
         setNovoCodigo('');
       }
+    } else {
+      alert('Preencha nome e código de 4 dígitos');
     }
   };
 
@@ -218,13 +236,15 @@ export default function NovaContaReceber() {
                       <div className="grid md:grid-cols-3 gap-4">
                         {(() => {
                           const preview = [];
-                          let data = new Date(primeiroVencimento);
+                          let data = new Date(primeiroVencimento + 'T12:00:00');
                           const valores = calcularParcelas();
                           for (let i = 0; i < Number(parcelas); i++) {
+                            const dataStr = data.toISOString().split('T')[0];
+                            const dataFormatada = new Date(dataStr).toLocaleDateString('pt-BR');
                             preview.push(
                               <div key={i} className="bg-gray-800 p-4 rounded-lg">
                                 <p className="font-bold">Parcela {i + 1}/{parcelas}</p>
-                                <p>Vencimento: {data.toLocaleDateString('pt-BR')}</p>
+                                <p>Vencimento: {dataFormatada}</p>
                                 <p>Valor: R$ {valores[i] || '0.00'}</p>
                               </div>
                             );
