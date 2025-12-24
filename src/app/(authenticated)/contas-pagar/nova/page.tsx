@@ -91,7 +91,7 @@ export default function NovaContaPagar() {
     try {
       const valores = calcularParcelas();
       const numParcelas = Number(parcelas);
-      let dataVenc = new Date(primeiroVencimento + 'T12:00:00');
+      let dataVenc = new Date(primeiroVencimento + 'T00:00:00Z');
 
       for (let i = 0; i < numParcelas; i++) {
         const dataStr = dataVenc.toISOString().split('T')[0];
@@ -124,7 +124,7 @@ export default function NovaContaPagar() {
     if (novoNome && novoCodigo.length === 4) {
       const { data, error } = await supabase.from('fornecedores').insert({
         user_id: user.id,
-        nome: novoNome,
+        nome: novoNome.toUpperCase(),
         codigo: novoCodigo,
       }).select();
 
@@ -248,7 +248,7 @@ export default function NovaContaPagar() {
                   <div className="grid md:grid-cols-3 gap-4">
                     {(() => {
                       const preview = [];
-                      let data = new Date(primeiroVencimento + 'T12:00:00');
+                      let data = new Date(primeiroVencimento + 'T00:00:00Z');
                       const valores = calcularParcelas();
                       for (let i = 0; i < Number(parcelas); i++) {
                         const dataStr = data.toISOString().split('T')[0];

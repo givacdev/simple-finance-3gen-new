@@ -47,7 +47,6 @@ export default function NovaContaReceber() {
   };
 
   const handleFaturaChange = (value: string) => {
-    // Aceita letras, números, / e - , converte pra maiúscula
     const filtered = value.replace(/[^a-zA-Z0-9/-]/g, '').toUpperCase();
     setFatura(filtered);
   };
@@ -59,7 +58,6 @@ export default function NovaContaReceber() {
   };
 
   const handleCodigoChange = (value: string) => {
-    // Aceita letras e números, converte pra maiúscula, limite 4 caracteres
     const filtered = value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 4);
     setNovoCodigo(filtered);
   };
@@ -85,20 +83,15 @@ export default function NovaContaReceber() {
       return;
     }
 
-    if (Number(parcelas) === 1 && !primeiroVencimento) {
+    if (!primeiroVencimento) {
       alert('Informe a data de vencimento');
-      return;
-    }
-
-    if (Number(parcelas) > 1 && tipoParcelamento === 'fixo' && !primeiroVencimento) {
-      alert('Informe o primeiro vencimento');
       return;
     }
 
     try {
       const valores = calcularParcelas();
       const numParcelas = Number(parcelas);
-      let dataVenc = new Date(primeiroVencimento + 'T12:00:00');
+      let dataVenc = new Date(primeiroVencimento + 'T00:00:00Z'); // UTC start
 
       for (let i = 0; i < numParcelas; i++) {
         const dataStr = dataVenc.toISOString().split('T')[0];
@@ -131,7 +124,7 @@ export default function NovaContaReceber() {
     if (novoNome && novoCodigo.length === 4) {
       const { data, error } = await supabase.from('clientes').insert({
         user_id: user.id,
-        nome: novoNome,
+        nome: novoNome.toUpperCase(),
         codigo: novoCodigo,
       }).select();
 
@@ -148,7 +141,7 @@ export default function NovaContaReceber() {
         setNovoCodigo('');
       }
     } else {
-      alert('Preencha nome e código de 4 caracteres (letras e números)');
+      alert('Preencha nome e código de 4 caracteres');
     }
   };
 
@@ -255,7 +248,7 @@ export default function NovaContaReceber() {
                   <div className="grid md:grid-cols-3 gap-4">
                     {(() => {
                       const preview = [];
-                      let data = new Date(primeiroVencimento + 'T12:00:00');
+                      let data = new Date(primeiroVencimento + 'T00:00:00Z');
                       const valores = calcularParcelas();
                       for (let i = 0; i < Number(parcelas); i++) {
                         const dataStr = data.toISOString().split('T')[0];
