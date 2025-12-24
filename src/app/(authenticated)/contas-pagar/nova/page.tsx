@@ -25,7 +25,7 @@ export default function NovaContaPagar() {
   const [novoCodigo, setNovoCodigo] = useState('');
   const router = useRouter();
 
-  useEffect(() => {
+  useEffect() => {
     const checkSession = async () => {
       const { data } = await supabase.auth.getSession();
       if (!data.session) router.push('/');
