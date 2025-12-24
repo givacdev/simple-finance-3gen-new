@@ -47,9 +47,11 @@ export default function ContasReceber() {
           </h1>
           <p className="text-xl text-gray-400 mt-2">Gerencie suas receitas e recebíveis</p>
         </div>
-        <button className="bg-green-600 hover:bg-green-700 px-8 py-4 rounded-xl font-bold text-xl">
-          + Nova Conta a Receber
-        </button>
+        <Link href="/contas-receber/nova">
+          <button className="bg-green-600 hover:bg-green-700 px-8 py-4 rounded-xl font-bold text-xl">
+            + Nova Conta a Receber
+          </button>
+        </Link>
       </div>
 
       <div className="bg-gray-900 rounded-2xl overflow-hidden">
