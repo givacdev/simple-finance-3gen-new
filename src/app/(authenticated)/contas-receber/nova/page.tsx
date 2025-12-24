@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,6 +20,9 @@ export default function NovaContaReceber() {
   const [intervaloDias, setIntervaloDias] = useState('30');
   const [primeiroVencimento, setPrimeiroVencimento] = useState('');
   const [observacoes, setObservacoes] = useState('');
+  const [modalNovoCliente, setModalNovoCliente] = useState(false);
+  const [novoNome, setNovoNome] = useState('');
+  const [novoCodigo, setNovoCodigo] = useState('');
   const router = useRouter();
 
   useEffect(() => {
@@ -50,30 +52,30 @@ export default function NovaContaReceber() {
   };
 
   const handleValorChange = (value: string) => {
-    const num = parseFloat(value);
-    if (isNaN(num) || num < 0) return;
-    setValorTotal(value);
+    if (value === '' || Number(value) >= 0) {
+      setValorTotal(value);
+    }
   };
 
   const calcularParcelas = () => {
     const total = Number(valorTotal);
     const numParcelas = Number(parcelas);
     if (numParcelas <= 0 || total <= 0) return [];
-    const valorBase = Math.floor(total / numParcelas * 100) / 100;
+    const valorBase = Math.floor((total / numParcelas) * 100) / 100;
     const resto = Number((total - valorBase * numParcelas).toFixed(2));
-    const parcelasValores = [];
+    const valores = [];
     for (let i = 0; i < numParcelas; i++) {
       let valor = valorBase;
-      if (i < Math.floor(resto * 100)) valor += 0.01;
-      parcelasValores.push(valor.toFixed(2));
+      if (i < resto * 100) valor += 0.01;
+      valores.push(valor.toFixed(2));
     }
-    return parcelasValores;
+    return valores;
   };
 
   const handleSubmit = async () => {
-    if (!clienteId || !valorTotal || !parcelas || Number(valorTotal) <= 0) return;
+    if (!clienteId || !valorTotal || Number(valorTotal) <= 0 || !parcelas) return;
 
-    const parcelasValores = calcularParcelas();
+    const valores = calcularParcelas();
     const numParcelas = Number(parcelas);
     let dataVenc = new Date(primeiroVencimento);
 
@@ -85,7 +87,7 @@ export default function NovaContaReceber() {
         valor_total: Number(valorTotal),
         parcelas: numParcelas,
         parcela_atual: i + 1,
-        valor_parcela: Number(parcelasValores[i]),
+        valor_parcela: Number(valores[i]),
         data_vencimento: dataVenc.toISOString().split('T')[0],
         observacoes,
       });
@@ -96,6 +98,23 @@ export default function NovaContaReceber() {
     }
 
     router.push('/contas-receber');
+  };
+
+  const handleNovoCliente = async () => {
+    if (novoNome && novoCodigo.length === 4) {
+      const { data } = await supabase.from('clientes').insert({
+        user_id: user.id,
+        nome: novoNome,
+        codigo: novoCodigo,
+      }).select();
+      if (data) {
+        setClientes([...clientes, data[0]]);
+        setClienteId(data[0].id);
+        setModalNovoCliente(false);
+        setNovoNome('');
+        setNovoCodigo('');
+      }
+    }
   };
 
   if (!user) return null;
@@ -115,11 +134,9 @@ export default function NovaContaReceber() {
                   <option key={c.id} value={c.id}>{c.nome} ({c.codigo})</option>
                 ))}
               </select>
-              <Link href="/contatos">
-                <button className="bg-green-600 hover:bg-green-700 px-6 py-4 rounded-xl font-bold text-2xl">
-                  +
-                </button>
-              </Link>
+              <button onClick={() => setModalNovoCliente(true)} className="bg-green-600 hover:bg-green-700 px-6 py-4 rounded-xl font-bold text-2xl">
+                +
+              </button>
             </div>
           </div>
 
@@ -128,7 +145,7 @@ export default function NovaContaReceber() {
             <input 
               value={fatura} 
               onChange={(e) => handleFaturaChange(e.target.value)} 
-              placeholder="Ex: REC-001 ou 310/AS" 
+              placeholder="Ex: REC-001 ou 6535/-" 
               className="w-full p-4 bg-gray-800 rounded-lg" 
             />
           </div>
@@ -194,6 +211,30 @@ export default function NovaContaReceber() {
                       className="w-full p-4 bg-gray-800 rounded-lg" 
                     />
                   </div>
+
+                  {primeiroVencimento && (
+                    <div className="md:col-span-2 mt-8">
+                      <p className="text-xl font-bold mb-4">Pré-visualização das parcelas:</p>
+                      <div className="grid md:grid-cols-3 gap-4">
+                        {(() => {
+                          const preview = [];
+                          let data = new Date(primeiroVencimento);
+                          const valores = calcularParcelas();
+                          for (let i = 0; i < Number(parcelas); i++) {
+                            preview.push(
+                              <div key={i} className="bg-gray-800 p-4 rounded-lg">
+                                <p className="font-bold">Parcela {i + 1}/{parcelas}</p>
+                                <p>Vencimento: {data.toLocaleDateString('pt-BR')}</p>
+                                <p>Valor: R$ {valores[i] || '0.00'}</p>
+                              </div>
+                            );
+                            data.setDate(data.getDate() + Number(intervaloDias));
+                          }
+                          return preview;
+                        })()}
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </>
@@ -203,22 +244,4 @@ export default function NovaContaReceber() {
             <label className="block text-xl mb-2">Observações</label>
             <textarea 
               value={observacoes} 
-              onChange={(e) => setObservacoes(e.target.value)} 
-              className="w-full p-4 bg-gray-800 rounded-lg" 
-              rows={4} 
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-6 mt-12">
-          <button onClick={() => router.back()} className="px-8 py-4 rounded-xl font-bold text-xl">
-            Cancelar
-          </button>
-          <button onClick={handleSubmit} className="bg-green-600 hover:bg-green-700 px-8 py-4 rounded-xl font-bold text-xl">
-            Salvar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+              onChange={(e) => set

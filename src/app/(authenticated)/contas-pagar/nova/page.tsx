@@ -20,6 +20,9 @@ export default function NovaContaPagar() {
   const [intervaloDias, setIntervaloDias] = useState('30');
   const [primeiroVencimento, setPrimeiroVencimento] = useState('');
   const [observacoes, setObservacoes] = useState('');
+  const [modalNovoFornecedor, setModalNovoFornecedor] = useState(false);
+  const [novoNome, setNovoNome] = useState('');
+  const [novoCodigo, setNovoCodigo] = useState('');
   const router = useRouter();
 
   useEffect(() => {
@@ -43,24 +46,36 @@ export default function NovaContaPagar() {
     setFornecedores(data || []);
   };
 
+  const handleFaturaChange = (value: string) => {
+    const filtered = value.replace(/[^A-Z0-9/-]/g, '').toUpperCase();
+    setFatura(filtered);
+  };
+
+  const handleValorChange = (value: string) => {
+    if (value === '' || Number(value) >= 0) {
+      setValorTotal(value);
+    }
+  };
+
   const calcularParcelas = () => {
     const total = Number(valorTotal);
     const numParcelas = Number(parcelas);
-    const valorBase = Math.floor(total / numParcelas * 100) / 100;
+    if (numParcelas <= 0 || total <= 0) return [];
+    const valorBase = Math.floor((total / numParcelas) * 100) / 100;
     const resto = Number((total - valorBase * numParcelas).toFixed(2));
-    const parcelasValores = [];
+    const valores = [];
     for (let i = 0; i < numParcelas; i++) {
       let valor = valorBase;
       if (i < resto * 100) valor += 0.01;
-      parcelasValores.push(valor.toFixed(2));
+      valores.push(valor.toFixed(2));
     }
-    return parcelasValores;
+    return valores;
   };
 
   const handleSubmit = async () => {
-    if (!fornecedorId || !valorTotal || !parcelas || !primeiroVencimento) return;
+    if (!fornecedorId || !valorTotal || Number(valorTotal) <= 0 || !parcelas) return;
 
-    const parcelasValores = calcularParcelas();
+    const valores = calcularParcelas();
     const numParcelas = Number(parcelas);
     let dataVenc = new Date(primeiroVencimento);
 
@@ -72,19 +87,34 @@ export default function NovaContaPagar() {
         valor_total: Number(valorTotal),
         parcelas: numParcelas,
         parcela_atual: i + 1,
-        valor_parcela: Number(parcelasValores[i]),
+        valor_parcela: Number(valores[i]),
         data_vencimento: dataVenc.toISOString().split('T')[0],
         observacoes,
       });
 
       if (tipoParcelamento === 'fixo') {
         dataVenc.setDate(dataVenc.getDate() + Number(intervaloDias));
-      } else {
-        // manual – tu vai implementar depois
       }
     }
 
     router.push('/contas-pagar');
+  };
+
+  const handleNovoFornecedor = async () => {
+    if (novoNome && novoCodigo.length === 4) {
+      const { data } = await supabase.from('fornecedores').insert({
+        user_id: user.id,
+        nome: novoNome,
+        codigo: novoCodigo,
+      }).select();
+      if (data) {
+        setFornecedores([...fornecedores, data[0]]);
+        setFornecedorId(data[0].id);
+        setModalNovoFornecedor(false);
+        setNovoNome('');
+        setNovoCodigo('');
+      }
+    }
   };
 
   if (!user) return null;
@@ -97,27 +127,50 @@ export default function NovaContaPagar() {
         <div className="grid md:grid-cols-2 gap-8">
           <div>
             <label className="block text-xl mb-2">Fornecedor *</label>
-            <select value={fornecedorId} onChange={(e) => setFornecedorId(e.target.value)} className="w-full p-4 bg-gray-800 rounded-lg">
-              <option value="">Selecione um fornecedor</option>
-              {fornecedores.map((f) => (
-                <option key={f.id} value={f.id}>{f.nome} ({f.codigo})</option>
-              ))}
-            </select>
+            <div className="flex gap-4">
+              <select value={fornecedorId} onChange={(e) => setFornecedorId(e.target.value)} className="flex-1 p-4 bg-gray-800 rounded-lg">
+                <option value="">Selecione um fornecedor</option>
+                {fornecedores.map((f) => (
+                  <option key={f.id} value={f.id}>{f.nome} ({f.codigo})</option>
+                ))}
+              </select>
+              <button onClick={() => setModalNovoFornecedor(true)} className="bg-red-600 hover:bg-red-700 px-6 py-4 rounded-xl font-bold text-2xl">
+                +
+              </button>
+            </div>
           </div>
 
           <div>
             <label className="block text-xl mb-2">Número da Fatura</label>
-            <input value={fatura} onChange={(e) => setFatura(e.target.value)} placeholder="Ex: INV-001" className="w-full p-4 bg-gray-800 rounded-lg" />
+            <input 
+              value={fatura} 
+              onChange={(e) => handleFaturaChange(e.target.value)} 
+              placeholder="Ex: INV-001 ou 310/AS" 
+              className="w-full p-4 bg-gray-800 rounded-lg" 
+            />
           </div>
 
           <div>
             <label className="block text-xl mb-2">Valor Total (R$)*</label>
-            <input type="number" value={valorTotal} onChange={(e) => setValorTotal(e.target.value)} className="w-full p-4 bg-gray-800 rounded-lg" />
+            <input 
+              type="number" 
+              min="0" 
+              step="0.01"
+              value={valorTotal} 
+              onChange={(e) => handleValorChange(e.target.value)} 
+              className="w-full p-4 bg-gray-800 rounded-lg" 
+            />
           </div>
 
           <div>
             <label className="block text-xl mb-2">Número de Parcelas *</label>
-            <input type="number" value={parcelas} onChange={(e) => setParcelas(e.target.value)} min="1" className="w-full p-4 bg-gray-800 rounded-lg" />
+            <input 
+              type="number" 
+              min="1"
+              value={parcelas} 
+              onChange={(e) => setParcelas(e.target.value || '1')} 
+              className="w-full p-4 bg-gray-800 rounded-lg" 
+            />
           </div>
 
           {Number(parcelas) > 1 && (
@@ -140,13 +193,48 @@ export default function NovaContaPagar() {
                 <>
                   <div>
                     <label className="block text-xl mb-2">Intervalo de dias</label>
-                    <input type="number" value={intervaloDias} onChange={(e) => setIntervaloDias(e.target.value)} className="w-full p-4 bg-gray-800 rounded-lg" />
+                    <input 
+                      type="number" 
+                      min="1"
+                      value={intervaloDias} 
+                      onChange={(e) => setIntervaloDias(e.target.value)} 
+                      className="w-full p-4 bg-gray-800 rounded-lg" 
+                    />
                   </div>
 
                   <div>
                     <label className="block text-xl mb-2">Primeiro Vencimento *</label>
-                    <input type="date" value={primeiroVencimento} onChange={(e) => setPrimeiroVencimento(e.target.value)} className="w-full p-4 bg-gray-800 rounded-lg" />
+                    <input 
+                      type="date" 
+                      value={primeiroVencimento} 
+                      onChange={(e) => setPrimeiroVencimento(e.target.value)} 
+                      className="w-full p-4 bg-gray-800 rounded-lg" 
+                    />
                   </div>
+
+                  {primeiroVencimento && (
+                    <div className="md:col-span-2 mt-8">
+                      <p className="text-xl font-bold mb-4">Pré-visualização das parcelas:</p>
+                      <div className="grid md:grid-cols-3 gap-4">
+                        {(() => {
+                          const preview = [];
+                          let data = new Date(primeiroVencimento);
+                          const valores = calcularParcelas();
+                          for (let i = 0; i < Number(parcelas); i++) {
+                            preview.push(
+                              <div key={i} className="bg-gray-800 p-4 rounded-lg">
+                                <p className="font-bold">Parcela {i + 1}/{parcelas}</p>
+                                <p>Vencimento: {data.toLocaleDateString('pt-BR')}</p>
+                                <p>Valor: R$ {valores[i] || '0.00'}</p>
+                              </div>
+                            );
+                            data.setDate(data.getDate() + Number(intervaloDias));
+                          }
+                          return preview;
+                        })()}
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </>
@@ -154,17 +242,40 @@ export default function NovaContaPagar() {
 
           <div className="md:col-span-2">
             <label className="block text-xl mb-2">Observações</label>
-            <textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} className="w-full p-4 bg-gray-800 rounded-lg" rows={4} />
+            <textarea 
+              value={observacoes} 
+              onChange={(e) => setObservacoes(e.target.value)} 
+              className="w-full p-4 bg-gray-800 rounded-lg" 
+              rows={4} 
+            />
           </div>
         </div>
 
         <div className="flex justify-end gap-6 mt-12">
-          <button onClick={() => router.back()} className="px-8 py-4 rounded-xl font-bold text-xl">Cancelar</button>
+          <button onClick={() => router.back()} className="px-8 py-4 rounded-xl font-bold text-xl">
+            Cancelar
+          </button>
           <button onClick={handleSubmit} className="bg-red-600 hover:bg-red-700 px-8 py-4 rounded-xl font-bold text-xl">
             Salvar
           </button>
         </div>
       </div>
+
+      {modalNovoFornecedor && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+          <div className="bg-gray-900 p-8 rounded-2xl max-w-md w-full">
+            <h2 className="text-3xl font-bold mb-6">Novo Fornecedor</h2>
+            <input placeholder="Nome completo *" value={novoNome} onChange={(e) => setNovoNome(e.target.value)} className="w-full p-4 mb-4 bg-gray-800 rounded-lg" />
+            <input placeholder="Código (4 dígitos) *" value={novoCodigo} onChange={(e) => setNovoCodigo(e.target.value.replace(/\D/g, '').slice(0,4))} className="w-full p-4 mb-8 bg-gray-800 rounded-lg" />
+            <div className="flex justify-end gap-4">
+              <button onClick={() => setModalNovoFornecedor(false)} className="px-6 py-3 rounded-xl font-bold">Cancelar</button>
+              <button onClick={handleNovoFornecedor} className="bg-red-600 px-6 py-3 rounded-xl font-bold">
+                Salvar Fornecedor
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
