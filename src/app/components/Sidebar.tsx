@@ -21,7 +21,7 @@ export default function Sidebar() {
 
   return (
     <div className="w-64 bg-gray-900 h-screen fixed left-0 top-0 p-6 overflow-y-auto">
-      <h1 className="text-3xl font-bold text-white mb-12">Simple Finance 3Gen</h1>
+      <h1 className="text-2xl font-bold text-white mb-12">Simple Finance 3Gen</h1>
       <nav className="space-y-2">
         {menuItems.map((item) => (
           <Link

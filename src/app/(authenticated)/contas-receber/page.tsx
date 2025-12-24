@@ -26,13 +26,19 @@ export default function ContasReceber() {
     checkSession();
   }, [router]);
 
-  const loadContas = async (userId: string) => {
-    const { data } = await supabase
-      .from('contas_receber')
-      .select('*, clientes(nome)')
-      .eq('user_id', userId)
-      .order('data_vencimento', { ascending: true });
-    setContas(data || []);
+  const isAtrasado = (vencimento: string) => {
+    const hoje = new Date();
+    const dataVenc = new Date(vencimento);
+    hoje.setHours(0,0,0,0);
+    dataVenc.setHours(0,0,0,0);
+    return dataVenc < hoje;
+  };
+
+  const isProximo = (vencimento: string) => {
+    const hoje = new Date();
+    const dataVenc = new Date(vencimento);
+    const diff = dataVenc.getTime() - hoje.getTime();
+    return diff > 0 && diff <= 7 * 24 * 60 * 60 * 1000;
   };
 
   if (!user) return null;
