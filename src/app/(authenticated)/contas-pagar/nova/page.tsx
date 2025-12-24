@@ -57,6 +57,11 @@ export default function NovaContaPagar() {
     }
   };
 
+  const handleCodigoChange = (value: string) => {
+    const filtered = value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 4);
+    setNovoCodigo(filtered);
+  };
+
   const calcularParcelas = () => {
     const total = Number(valorTotal);
     const numParcelas = Number(parcelas);
@@ -73,15 +78,20 @@ export default function NovaContaPagar() {
   };
 
   const handleSubmit = async () => {
-    if (!fornecedorId || !valorTotal || Number(valorTotal) <= 0 || !parcelas) {
-      alert('Preencha todos os campos obrigatórios');
+    if (!fornecedorId || !valorTotal || Number(valorTotal) <= 0) {
+      alert('Preencha fornecedor e valor total');
+      return;
+    }
+
+    if (!primeiroVencimento) {
+      alert('Informe a data de vencimento');
       return;
     }
 
     try {
       const valores = calcularParcelas();
       const numParcelas = Number(parcelas);
-      let dataVenc = new Date(primeiroVencimento + 'T12:00:00'); // evita problema de timezone
+      let dataVenc = new Date(primeiroVencimento + 'T12:00:00');
 
       for (let i = 0; i < numParcelas; i++) {
         const dataStr = dataVenc.toISOString().split('T')[0];
@@ -131,7 +141,7 @@ export default function NovaContaPagar() {
         setNovoCodigo('');
       }
     } else {
-      alert('Preencha nome e código de 4 dígitos');
+      alert('Preencha nome e código de 4 caracteres');
     }
   };
 
@@ -163,7 +173,7 @@ export default function NovaContaPagar() {
             <input 
               value={fatura} 
               onChange={(e) => handleFaturaChange(e.target.value)} 
-              placeholder="Ex: INV-001 ou 310/AS" 
+              placeholder="Ex: INV001 ou 310/AS" 
               className="w-full p-4 bg-gray-800 rounded-lg" 
             />
           </div>
@@ -191,6 +201,18 @@ export default function NovaContaPagar() {
             />
           </div>
 
+          {(Number(parcelas) === 1 || (Number(parcelas) > 1 && tipoParcelamento === 'fixo')) && (
+            <div>
+              <label className="block text-xl mb-2">Data de Vencimento *</label>
+              <input 
+                type="date" 
+                value={primeiroVencimento} 
+                onChange={(e) => setPrimeiroVencimento(e.target.value)} 
+                className="w-full p-4 bg-gray-800 rounded-lg" 
+              />
+            </div>
+          )}
+
           {Number(parcelas) > 1 && (
             <>
               <div>
@@ -208,54 +230,42 @@ export default function NovaContaPagar() {
               </div>
 
               {tipoParcelamento === 'fixo' && (
-                <>
-                  <div>
-                    <label className="block text-xl mb-2">Intervalo de dias</label>
-                    <input 
-                      type="number" 
-                      min="1"
-                      value={intervaloDias} 
-                      onChange={(e) => setIntervaloDias(e.target.value)} 
-                      className="w-full p-4 bg-gray-800 rounded-lg" 
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xl mb-2">Intervalo de dias</label>
+                  <input 
+                    type="number" 
+                    min="1"
+                    value={intervaloDias} 
+                    onChange={(e) => setIntervaloDias(e.target.value)} 
+                    className="w-full p-4 bg-gray-800 rounded-lg" 
+                  />
+                </div>
+              )}
 
-                  <div>
-                    <label className="block text-xl mb-2">Primeiro Vencimento *</label>
-                    <input 
-                      type="date" 
-                      value={primeiroVencimento} 
-                      onChange={(e) => setPrimeiroVencimento(e.target.value)} 
-                      className="w-full p-4 bg-gray-800 rounded-lg" 
-                    />
+              {tipoParcelamento === 'fixo' && primeiroVencimento && (
+                <div className="md:col-span-2 mt-8">
+                  <p className="text-xl font-bold mb-4">Pré-visualização das parcelas:</p>
+                  <div className="grid md:grid-cols-3 gap-4">
+                    {(() => {
+                      const preview = [];
+                      let data = new Date(primeiroVencimento + 'T12:00:00');
+                      const valores = calcularParcelas();
+                      for (let i = 0; i < Number(parcelas); i++) {
+                        const dataStr = data.toISOString().split('T')[0];
+                        const dataFormatada = new Date(dataStr).toLocaleDateString('pt-BR');
+                        preview.push(
+                          <div key={i} className="bg-gray-800 p-4 rounded-lg">
+                            <p className="font-bold">Parcela {i + 1}/{parcelas}</p>
+                            <p>Vencimento: {dataFormatada}</p>
+                            <p>Valor: R$ {valores[i] || '0.00'}</p>
+                          </div>
+                        );
+                        data.setDate(data.getDate() + Number(intervaloDias));
+                      }
+                      return preview;
+                    })()}
                   </div>
-
-                  {primeiroVencimento && (
-                    <div className="md:col-span-2 mt-8">
-                      <p className="text-xl font-bold mb-4">Pré-visualização das parcelas:</p>
-                      <div className="grid md:grid-cols-3 gap-4">
-                        {(() => {
-                          const preview = [];
-                          let data = new Date(primeiroVencimento + 'T12:00:00');
-                          const valores = calcularParcelas();
-                          for (let i = 0; i < Number(parcelas); i++) {
-                            const dataStr = data.toISOString().split('T')[0];
-                            const dataFormatada = new Date(dataStr).toLocaleDateString('pt-BR');
-                            preview.push(
-                              <div key={i} className="bg-gray-800 p-4 rounded-lg">
-                                <p className="font-bold">Parcela {i + 1}/{parcelas}</p>
-                                <p>Vencimento: {dataFormatada}</p>
-                                <p>Valor: R$ {valores[i] || '0.00'}</p>
-                              </div>
-                            );
-                            data.setDate(data.getDate() + Number(intervaloDias));
-                          }
-                          return preview;
-                        })()}
-                      </div>
-                    </div>
-                  )}
-                </>
+                </div>
               )}
             </>
           )}
@@ -286,7 +296,7 @@ export default function NovaContaPagar() {
           <div className="bg-gray-900 p-8 rounded-2xl max-w-md w-full">
             <h2 className="text-3xl font-bold mb-6">Novo Fornecedor</h2>
             <input placeholder="Nome completo *" value={novoNome} onChange={(e) => setNovoNome(e.target.value)} className="w-full p-4 mb-4 bg-gray-800 rounded-lg" />
-            <input placeholder="Código (4 dígitos) *" value={novoCodigo} onChange={(e) => setNovoCodigo(e.target.value.replace(/\D/g, '').slice(0,4))} className="w-full p-4 mb-8 bg-gray-800 rounded-lg" />
+            <input placeholder="Código (4 caracteres - letras e números) *" value={novoCodigo} onChange={(e) => handleCodigoChange(e.target.value)} className="w-full p-4 mb-8 bg-gray-800 rounded-lg" />
             <div className="flex justify-end gap-4">
               <button onClick={() => setModalNovoFornecedor(false)} className="px-6 py-3 rounded-xl font-bold">Cancelar</button>
               <button onClick={handleNovoFornecedor} className="bg-red-600 px-6 py-3 rounded-xl font-bold">
