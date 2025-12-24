@@ -27,9 +27,9 @@ export default function Categorias() {
   return (
     <div className="p-12">
       <h1 className="text-5xl font-bold mb-8">Categorias</h1>
-      <p className="text-xl text-gray-400 mb-12">Organize suas receitas e despesas</p>
+      <p className="text-xl text-gray-400 mb-12">Organize entradas e saídas</p>
       <div className="bg-gray-900 rounded-2xl p-8">
-        <p className="text-center text-gray-400 text-2xl">Em breve: categorias personalizadas de entrada e saída</p>
+        <p className="text-center text-gray-400 text-2xl">Em breve: categorias personalizadas para movimento de caixa</p>
       </div>
     </div>
   );
