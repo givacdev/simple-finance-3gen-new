@@ -26,7 +26,7 @@ export default function Sidebar() {
       <div className="space-y-4">
         {menuItems.map((item) => (
           <Link key={item.href} href={item.href}>
-            <button className={`w-full flex items-center gap-4 p-4 rounded-xl font-bold text-xl ${pathname === item.href ? 'bg-blue-600' : 'bg-gray-800 hover:bg-gray-700'}`}>
+            <button className={`w-full flex items-center gap-4 p-4 rounded-xl font-bold text-xl transition ${pathname.startsWith(item.href) ? 'bg-blue-600' : 'bg-gray-800 hover:bg-gray-700'}`}>
               {item.icon} {item.label}
             </button>
           </Link>
