@@ -92,10 +92,10 @@ export default function NovaContaPagar() {
       const valores = calcularParcelas();
       const numParcelas = Number(parcelas);
       let dataVenc = new Date(primeiroVencimento);
-      dataVenc.setHours(12, 0, 0, 0); // meio-dia local (São Paulo - UTC-3)
+      dataVenc.setHours(0, 0, 0, 0); // midnight local (São Paulo)
 
       for (let i = 0; i < numParcelas; i++) {
-        const dataStr = dataVenc.toISOString().split('T')[0];
+        const dataStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(dataVenc);
         const { error } = await supabase.from('contas_pagar').insert({
           user_id: user.id,
           fornecedor_id: fornecedorId,
