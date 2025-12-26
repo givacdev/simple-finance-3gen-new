@@ -91,7 +91,8 @@ export default function NovaContaReceber() {
     try {
       const valores = calcularParcelas();
       const numParcelas = Number(parcelas);
-      let dataVenc = new Date(primeiroVencimento + 'T00:00:00Z');
+      let dataVenc = new Date(primeiroVencimento);
+      dataVenc.setHours(12, 0, 0, 0); // meio-dia para evitar problema de fuso
 
       for (let i = 0; i < numParcelas; i++) {
         const dataStr = dataVenc.toISOString().split('T')[0];
@@ -248,11 +249,11 @@ export default function NovaContaReceber() {
                   <div className="grid md:grid-cols-3 gap-4">
                     {(() => {
                       const preview = [];
-                      let data = new Date(primeiroVencimento + 'T00:00:00Z');
+                      let data = new Date(primeiroVencimento);
+                      data.setHours(12, 0, 0, 0);
                       const valores = calcularParcelas();
                       for (let i = 0; i < Number(parcelas); i++) {
-                        const dataStr = data.toISOString().split('T')[0];
-                        const dataFormatada = new Date(dataStr).toLocaleDateString('pt-BR');
+                        const dataFormatada = data.toLocaleDateString('pt-BR');
                         preview.push(
                           <div key={i} className="bg-gray-800 p-4 rounded-lg">
                             <p className="font-bold">Parcela {i + 1}/{parcelas}</p>
