@@ -92,7 +92,7 @@ export default function NovaContaReceber() {
       const valores = calcularParcelas();
       const numParcelas = Number(parcelas);
       let dataVenc = new Date(primeiroVencimento);
-      dataVenc.setHours(0, 0, 0, 0); // midnight local – evita problema de fuso
+      dataVenc.setHours(12, 0, 0, 0); // meio-dia local (São Paulo)
 
       for (let i = 0; i < numParcelas; i++) {
         const dataStr = dataVenc.toISOString().split('T')[0];
@@ -174,7 +174,7 @@ export default function NovaContaReceber() {
             <input 
               value={fatura} 
               onChange={(e) => handleFaturaChange(e.target.value)} 
-              placeholder="Ex: REC001 ou 310/AS" 
+              placeholder="Ex: REC001 ou 415--/0" 
               className="w-full p-4 bg-gray-800 rounded-lg" 
             />
           </div>
@@ -250,7 +250,7 @@ export default function NovaContaReceber() {
                     {(() => {
                       const preview = [];
                       let data = new Date(primeiroVencimento);
-                      data.setHours(0, 0, 0, 0);
+                      data.setHours(12, 0, 0, 0);
                       const valores = calcularParcelas();
                       for (let i = 0; i < Number(parcelas); i++) {
                         const dataFormatada = data.toLocaleDateString('pt-BR');
