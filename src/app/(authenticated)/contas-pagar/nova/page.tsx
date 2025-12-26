@@ -92,7 +92,7 @@ export default function NovaContaPagar() {
       const valores = calcularParcelas();
       const numParcelas = Number(parcelas);
       let dataVenc = new Date(primeiroVencimento);
-      dataVenc.setHours(12, 0, 0, 0); // meio-dia para evitar problema de fuso
+      dataVenc.setHours(0, 0, 0, 0); // midnight local – evita problema de fuso
 
       for (let i = 0; i < numParcelas; i++) {
         const dataStr = dataVenc.toISOString().split('T')[0];
@@ -250,7 +250,7 @@ export default function NovaContaPagar() {
                     {(() => {
                       const preview = [];
                       let data = new Date(primeiroVencimento);
-                      data.setHours(12, 0, 0, 0);
+                      data.setHours(0, 0, 0, 0);
                       const valores = calcularParcelas();
                       for (let i = 0; i < Number(parcelas); i++) {
                         const dataFormatada = data.toLocaleDateString('pt-BR');
