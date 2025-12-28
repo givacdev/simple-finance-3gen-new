@@ -91,7 +91,7 @@ export default function NovaContaPagar() {
     try {
       const valores = calcularParcelas();
       const numParcelas = Number(parcelas);
-      let dataVenc = new Date(primeiroVencimento + 'T12:00:00'); // meio-dia local – garante YYYY-MM-DD correto
+      let dataVenc = new Date(primeiroVencimento + 'T00:00:00'); // midnight local – garante YYYY-MM-DD correto no banco
 
       for (let i = 0; i < numParcelas; i++) {
         const dataStr = dataVenc.toISOString().split('T')[0];
