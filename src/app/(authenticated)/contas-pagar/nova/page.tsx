@@ -91,8 +91,7 @@ export default function NovaContaPagar() {
     try {
       const valores = calcularParcelas();
       const numParcelas = Number(parcelas);
-      let dataVenc = new Date(primeiroVencimento);
-      dataVenc.setHours(12, 0, 0, 0); // meio-dia local
+      let dataVenc = new Date(primeiroVencimento + 'T12:00:00'); // meio-dia local
 
       for (let i = 0; i < numParcelas; i++) {
         const dataStr = dataVenc.toISOString().split('T')[0];
@@ -249,8 +248,7 @@ export default function NovaContaPagar() {
                   <div className="grid md:grid-cols-3 gap-4">
                     {(() => {
                       const preview = [];
-                      let data = new Date(primeiroVencimento);
-                      data.setHours(12, 0, 0, 0); // meio-dia local (São Paulo)
+                      let data = new Date(primeiroVencimento + 'T12:00:00'); // meio-dia local
                       const valores = calcularParcelas();
                       for (let i = 0; i < Number(parcelas); i++) {
                         const dataFormatada = data.toLocaleDateString('pt-BR');

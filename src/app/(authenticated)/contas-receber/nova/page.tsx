@@ -174,7 +174,7 @@ export default function NovaContaReceber() {
             <input 
               value={fatura} 
               onChange={(e) => handleFaturaChange(e.target.value)} 
-              placeholder="Ex: REC001 ou 415--/0" 
+              placeholder="Ex: REC001 ou 310/AS" 
               className="w-full p-4 bg-gray-800 rounded-lg" 
             />
           </div>
