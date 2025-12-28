@@ -37,6 +37,13 @@ export default function ContasReceber() {
     setContas(data || []);
   };
 
+  const isVencida = (dataVencimento: string) => {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const venc = new Date(dataVencimento + 'T12:00:00');
+    return venc < hoje;
+  };
+
   if (!user) return null;
 
   return (
@@ -72,11 +79,16 @@ export default function ContasReceber() {
                     <p className="text-gray-400 mt-2">Fatura #{conta.fatura} • Valor Total: R$ {Number(conta.valor_total).toFixed(2)}</p>
                     <p className="text-gray-500">Obs: {conta.observacoes || 'Sem observações'}</p>
                   </div>
+                  {isVencida(conta.data_vencimento) && (
+                    <span className="text-yellow-500 font-bold text-xl">Vencido</span>
+                  )}
                 </div>
                 <div className="mt-6 flex justify-between items-center">
                   <div>
                     <p>PARCELA {conta.parcela_atual}/{conta.parcelas}</p>
-                    <p className="text-gray-400">VENCIMENTO {new Date(conta.data_vencimento).toLocaleDateString('pt-BR')}</p>
+                    <p className="text-gray-400">
+                      VENCIMENTO {new Date(conta.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR')}
+                    </p>
                   </div>
                   <div className="text-3xl font-bold">R$ {Number(conta.valor_parcela).toFixed(2)}</div>
                   <button className="bg-green-600 hover:bg-green-700 px-8 py-4 rounded-xl font-bold">
