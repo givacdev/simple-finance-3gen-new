@@ -33,8 +33,67 @@ export default function ContasReceber() {
       .from('contas_receber')
       .select('*, clientes(nome)')
       .eq('user_id', userId)
+      .eq('recebido', false) // só pendentes
       .order('data_vencimento', { ascending: true });
     setContas(data || []);
+  };
+
+  const handleReceber = async (contaId: string) => {
+    if (!confirm('Confirmar recebimento desta parcela?')) return;
+
+    try {
+      // 1. Busca a conta completa
+      const { data: conta, error: errorConta } = await supabase
+        .from('contas_receber')
+        .select('*, clientes(nome)')
+        .eq('id', contaId)
+        .single();
+
+      if (errorConta) throw errorConta;
+
+      // 2. Busca a categoria "Pagamentos Recebidos" (padrão do sistema)
+      const { data: catData } = await supabase
+        .from('categorias_caixa')
+        .select('id')
+        .or('nome.eq.Pagamentos Recebidos,padrao.eq.true')
+        .limit(1)
+        .single();
+
+      const categoriaId = catData?.id || null;
+
+      // 3. Cria lançamento no movimento de caixa
+      const { data: movimento, error: errorMovimento } = await supabase
+        .from('movimentos_caixa')
+        .insert({
+          user_id: user.id,
+          descricao: `Recebimento - Fatura #${conta.fatura} - ${conta.clientes.nome}`,
+          valor: conta.valor_parcela,
+          tipo: 'entrada',
+          categoria_id: categoriaId,
+          data: new Date().toISOString().split('T')[0],
+        })
+        .select()
+        .single();
+
+      if (errorMovimento) throw errorMovimento;
+
+      // 4. Atualiza a conta como recebida
+      const { error: errorUpdate } = await supabase
+        .from('contas_receber')
+        .update({
+          recebido: true,
+          data_baixa: new Date().toISOString().split('T')[0],
+          movimento_caixa_id: movimento.id,
+        })
+        .eq('id', contaId);
+
+      if (errorUpdate) throw errorUpdate;
+
+      loadContas(user.id);
+      alert('Recebimento registrado com sucesso!');
+    } catch (error: any) {
+      alert('Erro ao registrar recebimento: ' + error.message);
+    }
   };
 
   const isVencida = (dataVencimento: string) => {
@@ -42,6 +101,10 @@ export default function ContasReceber() {
     hoje.setHours(0, 0, 0, 0);
     const venc = new Date(dataVencimento + 'T12:00:00');
     return venc < hoje;
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR');
   };
 
   if (!user) return null;
@@ -64,19 +127,24 @@ export default function ContasReceber() {
 
       <div className="bg-gray-900 rounded-2xl overflow-hidden">
         <div className="p-6 border-b border-gray-800">
-          <input placeholder="Buscar por cliente, fatura ou observação..." className="w-full p-4 bg-gray-800 rounded-lg" />
+          <input 
+            placeholder="Buscar por cliente, fatura ou observação..." 
+            className="w-full p-4 bg-gray-800 rounded-lg" 
+          />
         </div>
 
         <div className="divide-y divide-gray-800">
           {contas.length === 0 ? (
-            <p className="p-12 text-center text-gray-400 text-2xl">Nenhuma conta a receber cadastrada.</p>
+            <p className="p-12 text-center text-gray-400 text-2xl">Nenhuma conta a receber pendente.</p>
           ) : (
             contas.map((conta) => (
               <div key={conta.id} className="p-8 hover:bg-gray-800 transition">
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-3xl font-bold">{conta.clientes?.nome || 'Sem cliente'}</p>
-                    <p className="text-gray-400 mt-2">Fatura #{conta.fatura} • Valor Total: R$ {Number(conta.valor_total).toFixed(2)}</p>
+                    <p className="text-gray-400 mt-2">
+                      Fatura #{conta.fatura} • Valor Total: R$ {Number(conta.valor_total).toFixed(2)}
+                    </p>
                     <p className="text-gray-500">Obs: {conta.observacoes || 'Sem observações'}</p>
                   </div>
                   {isVencida(conta.data_vencimento) && (
@@ -86,12 +154,13 @@ export default function ContasReceber() {
                 <div className="mt-6 flex justify-between items-center">
                   <div>
                     <p>PARCELA {conta.parcela_atual}/{conta.parcelas}</p>
-                    <p className="text-gray-400">
-                      VENCIMENTO {new Date(conta.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR')}
-                    </p>
+                    <p className="text-gray-400">VENCIMENTO {formatDate(conta.data_vencimento)}</p>
                   </div>
                   <div className="text-3xl font-bold">R$ {Number(conta.valor_parcela).toFixed(2)}</div>
-                  <button className="bg-green-600 hover:bg-green-700 px-8 py-4 rounded-xl font-bold">
+                  <button
+                    onClick={() => handleReceber(conta.id)}
+                    className="bg-green-600 hover:bg-green-700 px-8 py-4 rounded-xl font-bold"
+                  >
                     Receber
                   </button>
                 </div>
