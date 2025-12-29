@@ -14,7 +14,10 @@ export default function Dashboard() {
   const [user, setUser] = useState<any>(null);
   const [entradasPrevistas, setEntradasPrevistas] = useState(0);
   const [saidasPrevistas, setSaidasPrevistas] = useState(0);
+  const [saldoProjetado, setSaldoProjetado] = useState(0);
   const [saldoCaixa, setSaldoCaixa] = useState(0);
+  const [jurosPagos30, setJurosPagos30] = useState(0);
+  const [jurosRecebidos30, setJurosRecebidos30] = useState(0);
   const [proximasPagar, setProximasPagar] = useState<any[]>([]);
   const [proximasReceber, setProximasReceber] = useState<any[]>([]);
   const router = useRouter();
@@ -33,7 +36,7 @@ export default function Dashboard() {
   }, [router]);
 
   const loadDashboard = async (userId: string) => {
-    // Contas a receber pendentes
+    // Entradas previstas (contas a receber pendentes)
     const { data: receber } = await supabase
       .from('contas_receber')
       .select('valor_parcela')
@@ -43,7 +46,7 @@ export default function Dashboard() {
     const totalReceber = (receber || []).reduce((sum: number, c: any) => sum + Number(c.valor_parcela), 0);
     setEntradasPrevistas(totalReceber);
 
-    // Contas a pagar pendentes
+    // Saídas previstas (contas a pagar pendentes)
     const { data: pagar } = await supabase
       .from('contas_pagar')
       .select('valor_parcela')
@@ -52,6 +55,8 @@ export default function Dashboard() {
 
     const totalPagar = (pagar || []).reduce((sum: number, c: any) => sum + Number(c.valor_parcela), 0);
     setSaidasPrevistas(totalPagar);
+
+    setSaldoProjetado(totalReceber - totalPagar);
 
     // Saldo atual do caixa (movimentos reais)
     const { data: movimentos } = await supabase
@@ -65,6 +70,32 @@ export default function Dashboard() {
       else saldo -= Number(m.valor);
     });
     setSaldoCaixa(saldo);
+
+    // Juros pagos últimos 30 dias
+    const trintaDiasAtras = new Date();
+    trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
+    const data30 = trintaDiasAtras.toISOString().split('T')[0];
+
+    const { data: jurosPag } = await supabase
+      .from('contas_pagar')
+      .select('juros_pagos')
+      .eq('user_id', userId)
+      .eq('pago', true)
+      .gte('data_baixa', data30);
+
+    const totalJurosPagos = (jurosPag || []).reduce((sum: number, c: any) => sum + Number(c.juros_pagos || 0), 0);
+    setJurosPagos30(totalJurosPagos);
+
+    // Juros recebidos últimos 30 dias
+    const { data: jurosRec } = await supabase
+      .from('contas_receber')
+      .select('juros_recebidos')
+      .eq('user_id', userId)
+      .eq('recebido', true)
+      .gte('data_baixa', data30);
+
+    const totalJurosRecebidos = (jurosRec || []).reduce((sum: number, c: any) => sum + Number(c.juros_recebidos || 0), 0);
+    setJurosRecebidos30(totalJurosRecebidos);
 
     // Próximas a pagar
     const { data: proxPagar } = await supabase
@@ -93,12 +124,11 @@ export default function Dashboard() {
 
   if (!user) return null;
 
-  const saldoProjetado = entradasPrevistas - saidasPrevistas;
-
   return (
     <div className="p-12">
       <h1 className="text-5xl font-bold mb-12 text-center">Dashboard Financeiro</h1>
 
+      {/* Cards principais */}
       <div className="grid md:grid-cols-4 gap-8 mb-16">
         <div className="bg-green-900 p-10 rounded-3xl text-center shadow-2xl">
           <p className="text-2xl text-green-300 mb-4">Entradas Previstas</p>
@@ -122,6 +152,19 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Cards de juros */}
+      <div className="grid md:grid-cols-2 gap-8 mb-16">
+        <div className="bg-red-900 p-10 rounded-3xl text-center shadow-2xl">
+          <p className="text-2xl text-red-300 mb-4">Juros Pagos (30 dias)</p>
+          <p className="text-6xl font-bold">R$ {jurosPagos30.toFixed(2)}</p>
+        </div>
+        <div className="bg-green-900 p-10 rounded-3xl text-center shadow-2xl">
+          <p className="text-2xl text-green-300 mb-4">Juros Recebidos (30 dias)</p>
+          <p className="text-6xl font-bold">R$ {jurosRecebidos30.toFixed(2)}</p>
+        </div>
+      </div>
+
+      {/* Próximas contas */}
       <div className="grid md:grid-cols-2 gap-12">
         <div className="bg-gray-900 p-8 rounded-3xl">
           <h2 className="text-3xl font-bold mb-6 flex items-center justify-between">

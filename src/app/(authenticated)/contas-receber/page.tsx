@@ -38,20 +38,25 @@ export default function ContasReceber() {
     setContas(data || []);
   };
 
-  const handleReceber = async (contaId: string) => {
+    const handleReceber = async (contaId: string) => {
     if (!confirm('Confirmar recebimento desta parcela?')) return;
 
+    const jurosStr = prompt('Juros recebidos (se houver, senão deixe 0):', '0');
+    const juros = jurosStr ? parseFloat(jurosStr.replace(',', '.')) : 0;
+    if (isNaN(juros) || juros < 0) {
+      alert('Valor de juros inválido');
+      return;
+    }
+
     try {
-      // 1. Busca a conta completa
-      const { data: conta, error: errorConta } = await supabase
+      const { data: conta } = await supabase
         .from('contas_receber')
         .select('*, clientes(nome)')
         .eq('id', contaId)
         .single();
 
-      if (errorConta) throw errorConta;
+      const valorTotalRecebido = conta.valor_parcela + juros;
 
-      // 2. Busca a categoria "Pagamentos Recebidos" (padrão do sistema)
       const { data: catData } = await supabase
         .from('categorias_caixa')
         .select('id')
@@ -61,13 +66,12 @@ export default function ContasReceber() {
 
       const categoriaId = catData?.id || null;
 
-      // 3. Cria lançamento no movimento de caixa
-      const { data: movimento, error: errorMovimento } = await supabase
+      const { data: movimento } = await supabase
         .from('movimentos_caixa')
         .insert({
           user_id: user.id,
-          descricao: `Recebimento - Fatura #${conta.fatura} - ${conta.clientes.nome}`,
-          valor: conta.valor_parcela,
+          descricao: `Recebimento - Fatura #${conta.fatura} - ${conta.clientes.nome}${juros > 0 ? ` (com R$${juros.toFixed(2)} de juros)` : ''}`,
+          valor: valorTotalRecebido,
           tipo: 'entrada',
           categoria_id: categoriaId,
           data: new Date().toISOString().split('T')[0],
@@ -75,24 +79,21 @@ export default function ContasReceber() {
         .select()
         .single();
 
-      if (errorMovimento) throw errorMovimento;
-
-      // 4. Atualiza a conta como recebida
-      const { error: errorUpdate } = await supabase
+      await supabase
         .from('contas_receber')
         .update({
           recebido: true,
           data_baixa: new Date().toISOString().split('T')[0],
           movimento_caixa_id: movimento.id,
+          juros_recebidos: juros,
+          valor_total_recebido: valorTotalRecebido,
         })
         .eq('id', contaId);
-
-      if (errorUpdate) throw errorUpdate;
 
       loadContas(user.id);
       alert('Recebimento registrado com sucesso!');
     } catch (error: any) {
-      alert('Erro ao registrar recebimento: ' + error.message);
+      alert('Erro: ' + error.message);
     }
   };
 

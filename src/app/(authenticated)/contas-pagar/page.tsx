@@ -41,17 +41,24 @@ export default function ContasPagar() {
   const handlePagar = async (contaId: string) => {
     if (!confirm('Confirmar pagamento desta parcela?')) return;
 
+    // Modal simples pra informar juros
+    const jurosStr = prompt('Juros pagos (se houver, senão deixe 0):', '0');
+    const juros = jurosStr ? parseFloat(jurosStr.replace(',', '.')) : 0;
+    if (isNaN(juros) || juros < 0) {
+      alert('Valor de juros inválido');
+      return;
+    }
+
     try {
-      // 1. Busca a conta completa
-      const { data: conta, error: errorConta } = await supabase
+      const { data: conta } = await supabase
         .from('contas_pagar')
         .select('*, fornecedores(nome)')
         .eq('id', contaId)
         .single();
 
-      if (errorConta) throw errorConta;
+      const valorTotalPago = conta.valor_parcela + juros;
 
-      // 2. Busca a categoria "Pagamentos" (padrão do sistema)
+      // Busca categoria "Pagamentos"
       const { data: catData } = await supabase
         .from('categorias_caixa')
         .select('id')
@@ -61,13 +68,13 @@ export default function ContasPagar() {
 
       const categoriaId = catData?.id || null;
 
-      // 3. Cria lançamento no movimento de caixa
-      const { data: movimento, error: errorMovimento } = await supabase
+      // Cria movimento no caixa com valor total (incluindo juros)
+      const { data: movimento } = await supabase
         .from('movimentos_caixa')
         .insert({
           user_id: user.id,
-          descricao: `Pagamento - Fatura #${conta.fatura} - ${conta.fornecedores.nome}`,
-          valor: conta.valor_parcela,
+          descricao: `Pagamento - Fatura #${conta.fatura} - ${conta.fornecedores.nome}${juros > 0 ? ` (com R$${juros.toFixed(2)} de juros)` : ''}`,
+          valor: valorTotalPago,
           tipo: 'saida',
           categoria_id: categoriaId,
           data: new Date().toISOString().split('T')[0],
@@ -75,24 +82,22 @@ export default function ContasPagar() {
         .select()
         .single();
 
-      if (errorMovimento) throw errorMovimento;
-
-      // 4. Atualiza a conta como paga
-      const { error: errorUpdate } = await supabase
+      // Atualiza a conta
+      await supabase
         .from('contas_pagar')
         .update({
           pago: true,
           data_baixa: new Date().toISOString().split('T')[0],
           movimento_caixa_id: movimento.id,
+          juros_pagos: juros,
+          valor_total_pago: valorTotalPago,
         })
         .eq('id', contaId);
-
-      if (errorUpdate) throw errorUpdate;
 
       loadContas(user.id);
       alert('Pagamento registrado com sucesso!');
     } catch (error: any) {
-      alert('Erro ao registrar pagamento: ' + error.message);
+      alert('Erro: ' + error.message);
     }
   };
 
