@@ -148,8 +148,8 @@ export default function ContasReceber() {
                     </p>
                     <p className="text-gray-500">Obs: {conta.observacoes || 'Sem observações'}</p>
                   </div>
-                  {isVencida(conta.data_vencimento) && (
-                    <span className="text-yellow-500 font-bold text-xl">Vencido</span>
+                    {isVencida(conta.data_vencimento) && (
+                    <span className="bg-red-600 text-white px-4 py-2 rounded-full text-sm font-bold">VENCIDO</span>
                   )}
                 </div>
                 <div className="mt-6 flex justify-between items-center">
