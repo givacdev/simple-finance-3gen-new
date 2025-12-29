@@ -12,9 +12,11 @@ const supabase = createClient(
 export default function MovimentoCaixa() {
   const [user, setUser] = useState<any>(null);
   const [movimentos, setMovimentos] = useState<any[]>([]);
+  const [categorias, setCategorias] = useState<any[]>([]);
   const [descricao, setDescricao] = useState('');
   const [valor, setValor] = useState('');
   const [tipo, setTipo] = useState<'entrada' | 'saida'>('entrada');
+  const [categoriaId, setCategoriaId] = useState('');
   const [dataLancamento, setDataLancamento] = useState(new Date().toISOString().split('T')[0]);
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
@@ -31,26 +33,36 @@ export default function MovimentoCaixa() {
         return;
       }
       setUser(data.session.user);
+      loadCategorias();
       loadMovimentos(data.session.user.id);
     };
     checkSession();
   }, [router]);
 
+  const loadCategorias = async () => {
+    const { data } = await supabase
+      .from('categorias_caixa')
+      .select('*')
+      .or('user_id.is.null,padrao.eq.true')  // categorias padrão + do usuário (futuro)
+      .order('nome');
+    setCategorias(data || []);
+  };
+
+  const categoriasFiltradas = categorias.filter((c: any) => c.tipo === tipo);
+
   const loadMovimentos = async (userId: string) => {
     let query = supabase
       .from('movimentos_caixa')
-      .select('*')
+      .select('*, categorias_caixa(nome)')
       .eq('user_id', userId)
       .order('data', { ascending: false });
 
-    // Filtro por período
     if (dataInicio) query = query.gte('data', dataInicio);
     if (dataFim) query = query.lte('data', dataFim);
 
     const { data } = await query;
     setMovimentos(data || []);
 
-    // Calcula totais
     let ent = 0;
     let sai = 0;
     (data || []).forEach((m: any) => {
@@ -63,8 +75,8 @@ export default function MovimentoCaixa() {
   };
 
   const handleSubmit = async () => {
-    if (!descricao || !valor || Number(valor) <= 0) {
-      alert('Preencha descrição e valor');
+    if (!descricao || !valor || Number(valor) <= 0 || !categoriaId) {
+      alert('Preencha descrição, valor e categoria');
       return;
     }
 
@@ -73,6 +85,7 @@ export default function MovimentoCaixa() {
       descricao,
       valor: Number(valor),
       tipo,
+      categoria_id: categoriaId,
       data: dataLancamento,
     });
 
@@ -83,7 +96,7 @@ export default function MovimentoCaixa() {
 
     setDescricao('');
     setValor('');
-    setTipo('entrada');
+    setCategoriaId('');
     loadMovimentos(user.id);
   };
 
@@ -91,7 +104,6 @@ export default function MovimentoCaixa() {
     loadMovimentos(user.id);
   };
 
-  // Default últimos 30 dias
   useEffect(() => {
     const hoje = new Date();
     const inicio = new Date(hoje);
@@ -130,22 +142,59 @@ export default function MovimentoCaixa() {
         <div className="grid md:grid-cols-2 gap-8">
           <div>
             <label className="block text-xl mb-2">Descrição *</label>
-            <input value={descricao} onChange={(e) => setDescricao(e.target.value)} className="w-full p-4 bg-gray-800 rounded-lg" placeholder="Ex: Salário, Conta de luz" />
+            <input 
+              value={descricao} 
+              onChange={(e) => setDescricao(e.target.value)} 
+              placeholder="Ex: Salário, Conta de luz" 
+              className="w-full p-4 bg-gray-800 rounded-lg" 
+            />
           </div>
           <div>
             <label className="block text-xl mb-2">Valor (R$)*</label>
-            <input type="number" min="0" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} className="w-full p-4 bg-gray-800 rounded-lg" />
+            <input 
+              type="number" 
+              min="0" 
+              step="0.01" 
+              value={valor} 
+              onChange={(e) => setValor(e.target.value)} 
+              className="w-full p-4 bg-gray-800 rounded-lg" 
+            />
           </div>
           <div>
             <label className="block text-xl mb-2">Tipo</label>
-            <select value={tipo} onChange={(e) => setTipo(e.target.value as 'entrada' | 'saida')} className="w-full p-4 bg-gray-800 rounded-lg">
+            <select 
+              value={tipo} 
+              onChange={(e) => {
+                setTipo(e.target.value as 'entrada' | 'saida');
+                setCategoriaId('');
+              }} 
+              className="w-full p-4 bg-gray-800 rounded-lg"
+            >
               <option value="entrada">Entrada (+)</option>
               <option value="saida">Saída (-)</option>
             </select>
           </div>
           <div>
+            <label className="block text-xl mb-2">Categoria *</label>
+            <select 
+              value={categoriaId} 
+              onChange={(e) => setCategoriaId(e.target.value)} 
+              className="w-full p-4 bg-gray-800 rounded-lg"
+            >
+              <option value="">Selecione uma categoria</option>
+              {categoriasFiltradas.map((cat: any) => (
+                <option key={cat.id} value={cat.id}>{cat.nome}</option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="block text-xl mb-2">Data</label>
-            <input type="date" value={dataLancamento} onChange={(e) => setDataLancamento(e.target.value)} className="w-full p-4 bg-gray-800 rounded-lg" />
+            <input 
+              type="date" 
+              value={dataLancamento} 
+              onChange={(e) => setDataLancamento(e.target.value)} 
+              className="w-full p-4 bg-gray-800 rounded-lg" 
+            />
           </div>
         </div>
         <div className="mt-8 text-right">
@@ -155,6 +204,7 @@ export default function MovimentoCaixa() {
         </div>
       </div>
 
+      {/* Filtro e Extrato (mesmo do código anterior) */}
       <div className="bg-gray-900 p-8 rounded-2xl mb-12">
         <h2 className="text-3xl font-bold mb-6">Filtro por Período</h2>
         <div className="grid md:grid-cols-3 gap-8">
@@ -178,7 +228,6 @@ export default function MovimentoCaixa() {
         <div className="p-6 border-b border-gray-800">
           <h2 className="text-3xl font-bold">Extrato</h2>
         </div>
-
         <div className="divide-y divide-gray-800">
           {movimentos.length === 0 ? (
             <p className="p-12 text-center text-gray-400 text-2xl">Nenhum movimento no período.</p>
@@ -188,7 +237,9 @@ export default function MovimentoCaixa() {
                 <div className="flex justify-between items-center">
                   <div>
                     <p className="text-3xl font-bold">{m.descricao}</p>
-                    <p className="text-gray-400 mt-2">{new Date(m.data + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
+                    <p className="text-gray-400 mt-2">
+                      {m.categorias_caixa?.nome || 'Sem categoria'} • {new Date(m.data + 'T12:00:00').toLocaleDateString('pt-BR')}
+                    </p>
                   </div>
                   <div className={`text-4xl font-bold ${m.tipo === 'entrada' ? 'text-green-400' : 'text-red-400'}`}>
                     {m.tipo === 'entrada' ? '+' : '-'} R$ {Number(m.valor).toFixed(2)}
