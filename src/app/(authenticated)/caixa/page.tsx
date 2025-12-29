@@ -12,9 +12,15 @@ const supabase = createClient(
 export default function MovimentoCaixa() {
   const [user, setUser] = useState<any>(null);
   const [movimentos, setMovimentos] = useState<any[]>([]);
+  const [descricao, setDescricao] = useState('');
+  const [valor, setValor] = useState('');
+  const [tipo, setTipo] = useState<'entrada' | 'saida'>('entrada');
+  const [dataLancamento, setDataLancamento] = useState(new Date().toISOString().split('T')[0]);
+  const [dataInicio, setDataInicio] = useState('');
+  const [dataFim, setDataFim] = useState('');
+  const [entradas, setEntradas] = useState(0);
+  const [saidas, setSaidas] = useState(0);
   const [saldo, setSaldo] = useState(0);
-  const [totalEntradas, setTotalEntradas] = useState(0);
-  const [totalSaidas, setTotalSaidas] = useState(0);
   const router = useRouter();
 
   useEffect(() => {
@@ -31,52 +37,68 @@ export default function MovimentoCaixa() {
   }, [router]);
 
   const loadMovimentos = async (userId: string) => {
-    // Carrega contas a pagar
-    const { data: pagar } = await supabase
-      .from('contas_pagar')
-      .select('*, fornecedores(nome)')
-      .eq('user_id', userId);
+    let query = supabase
+      .from('movimentos_caixa')
+      .select('*')
+      .eq('user_id', userId)
+      .order('data', { ascending: false });
 
-    // Carrega contas a receber
-    const { data: receber } = await supabase
-      .from('contas_receber')
-      .select('*, clientes(nome)')
-      .eq('user_id', userId);
+    // Filtro por período
+    if (dataInicio) query = query.gte('data', dataInicio);
+    if (dataFim) query = query.lte('data', dataFim);
 
-    // Junta tudo
-    const todos = [
-      ...(pagar || []).map((c: any) => ({ ...c, tipo: 'pagar', nome: c.fornecedores?.nome || 'Sem fornecedor' })),
-      ...(receber || []).map((c: any) => ({ ...c, tipo: 'receber', nome: c.clientes?.nome || 'Sem cliente' })),
-    ];
+    const { data } = await query;
+    setMovimentos(data || []);
 
-    // Ordena por data_vencimento
-    todos.sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime());
+    // Calcula totais
+    let ent = 0;
+    let sai = 0;
+    (data || []).forEach((m: any) => {
+      if (m.tipo === 'entrada') ent += Number(m.valor);
+      else sai += Number(m.valor);
+    });
+    setEntradas(ent);
+    setSaidas(sai);
+    setSaldo(ent - sai);
+  };
 
-    setMovimentos(todos);
+  const handleSubmit = async () => {
+    if (!descricao || !valor || Number(valor) <= 0) {
+      alert('Preencha descrição e valor');
+      return;
+    }
 
-    // Calcula totais (só pendentes)
-    let entradas = 0;
-    let saidas = 0;
-    todos.forEach((m: any) => {
-      if (m.tipo === 'receber') entradas += Number(m.valor_parcela);
-      if (m.tipo === 'pagar') saidas += Number(m.valor_parcela);
+    const { error } = await supabase.from('movimentos_caixa').insert({
+      user_id: user.id,
+      descricao,
+      valor: Number(valor),
+      tipo,
+      data: dataLancamento,
     });
 
-    setTotalEntradas(entradas);
-    setTotalSaidas(saidas);
-    setSaldo(entradas - saidas);
+    if (error) {
+      alert('Erro ao salvar: ' + error.message);
+      return;
+    }
+
+    setDescricao('');
+    setValor('');
+    setTipo('entrada');
+    loadMovimentos(user.id);
   };
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR');
+  const aplicarFiltro = () => {
+    loadMovimentos(user.id);
   };
 
-  const isVencida = (dateStr: string) => {
+  // Default últimos 30 dias
+  useEffect(() => {
     const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const venc = new Date(dateStr + 'T12:00:00');
-    return venc < hoje;
-  };
+    const inicio = new Date(hoje);
+    inicio.setDate(hoje.getDate() - 30);
+    setDataInicio(inicio.toISOString().split('T')[0]);
+    setDataFim(hoje.toISOString().split('T')[0]);
+  }, []);
 
   if (!user) return null;
 
@@ -88,54 +110,89 @@ export default function MovimentoCaixa() {
 
       <div className="grid md:grid-cols-3 gap-8 mb-12">
         <div className="bg-green-900 p-8 rounded-2xl text-center">
-          <p className="text-2xl text-green-300">Entradas Previstas</p>
-          <p className="text-5xl font-bold mt-4">R$ {totalEntradas.toFixed(2)}</p>
+          <p className="text-2xl text-green-300">Entradas (+)</p>
+          <p className="text-5xl font-bold mt-4">R$ {entradas.toFixed(2)}</p>
         </div>
         <div className="bg-red-900 p-8 rounded-2xl text-center">
-          <p className="text-2xl text-red-300">Saídas Previstas</p>
-          <p className="text-5xl font-bold mt-4">R$ {totalSaidas.toFixed(2)}</p>
+          <p className="text-2xl text-red-300">Saídas (-)</p>
+          <p className="text-5xl font-bold mt-4">R$ {saidas.toFixed(2)}</p>
         </div>
         <div className={`p-8 rounded-2xl text-center ${saldo >= 0 ? 'bg-blue-900' : 'bg-orange-900'}`}>
-          <p className="text-2xl text-gray-300">Saldo Projetado</p>
+          <p className="text-2xl text-gray-300">Saldo</p>
           <p className={`text-5xl font-bold mt-4 ${saldo >= 0 ? 'text-blue-300' : 'text-orange-300'}`}>
             R$ {saldo.toFixed(2)}
           </p>
         </div>
       </div>
 
+      <div className="bg-gray-900 p-8 rounded-2xl mb-12">
+        <h2 className="text-3xl font-bold mb-6">Novo Lançamento</h2>
+        <div className="grid md:grid-cols-2 gap-8">
+          <div>
+            <label className="block text-xl mb-2">Descrição *</label>
+            <input value={descricao} onChange={(e) => setDescricao(e.target.value)} className="w-full p-4 bg-gray-800 rounded-lg" placeholder="Ex: Salário, Conta de luz" />
+          </div>
+          <div>
+            <label className="block text-xl mb-2">Valor (R$)*</label>
+            <input type="number" min="0" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} className="w-full p-4 bg-gray-800 rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-xl mb-2">Tipo</label>
+            <select value={tipo} onChange={(e) => setTipo(e.target.value as 'entrada' | 'saida')} className="w-full p-4 bg-gray-800 rounded-lg">
+              <option value="entrada">Entrada (+)</option>
+              <option value="saida">Saída (-)</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xl mb-2">Data</label>
+            <input type="date" value={dataLancamento} onChange={(e) => setDataLancamento(e.target.value)} className="w-full p-4 bg-gray-800 rounded-lg" />
+          </div>
+        </div>
+        <div className="mt-8 text-right">
+          <button onClick={handleSubmit} className="bg-blue-600 hover:bg-blue-700 px-8 py-4 rounded-xl font-bold text-xl">
+            Lançar
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-gray-900 p-8 rounded-2xl mb-12">
+        <h2 className="text-3xl font-bold mb-6">Filtro por Período</h2>
+        <div className="grid md:grid-cols-3 gap-8">
+          <div>
+            <label className="block text-xl mb-2">Data Inicial</label>
+            <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} className="w-full p-4 bg-gray-800 rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-xl mb-2">Data Final</label>
+            <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} className="w-full p-4 bg-gray-800 rounded-lg" />
+          </div>
+          <div className="flex items-end">
+            <button onClick={aplicarFiltro} className="bg-blue-600 hover:bg-blue-700 px-8 py-4 rounded-xl font-bold text-xl w-full">
+              Aplicar Filtro
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="bg-gray-900 rounded-2xl overflow-hidden">
         <div className="p-6 border-b border-gray-800">
-          <h2 className="text-3xl font-bold">Lançamentos</h2>
+          <h2 className="text-3xl font-bold">Extrato</h2>
         </div>
 
         <div className="divide-y divide-gray-800">
           {movimentos.length === 0 ? (
-            <p className="p-12 text-center text-gray-400 text-2xl">Nenhum lançamento cadastrado.</p>
+            <p className="p-12 text-center text-gray-400 text-2xl">Nenhum movimento no período.</p>
           ) : (
             movimentos.map((m) => (
               <div key={m.id} className="p-8 hover:bg-gray-800 transition">
-                <div className="flex justify-between items-start">
+                <div className="flex justify-between items-center">
                   <div>
-                    <p className="text-3xl font-bold">{m.nome}</p>
-                    <p className="text-gray-400 mt-2">
-                      Fatura #{m.fatura} • {m.tipo === 'receber' ? 'Entrada' : 'Saída'}
-                    </p>
-                    <p className="text-gray-500">Parcela {m.parcela_atual}/{m.parcelas} • Obs: {m.observacoes || 'Sem observações'}</p>
+                    <p className="text-3xl font-bold">{m.descricao}</p>
+                    <p className="text-gray-400 mt-2">{new Date(m.data + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
                   </div>
-                  {isVencida(m.data_vencimento) && (
-                    <span className="text-yellow-500 font-bold text-xl">Vencido</span>
-                  )}
-                </div>
-                <div className="mt-6 flex justify-between items-center">
-                  <div>
-                    <p className="text-gray-400">VENCIMENTO {formatDate(m.data_vencimento)}</p>
+                  <div className={`text-4xl font-bold ${m.tipo === 'entrada' ? 'text-green-400' : 'text-red-400'}`}>
+                    {m.tipo === 'entrada' ? '+' : '-'} R$ {Number(m.valor).toFixed(2)}
                   </div>
-                  <div className={`text-3xl font-bold ${m.tipo === 'receber' ? 'text-green-400' : 'text-red-400'}`}>
-                    {m.tipo === 'receber' ? '+' : '-'} R$ {Number(m.valor_parcela).toFixed(2)}
-                  </div>
-                  <button className={`${m.tipo === 'receber' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} px-8 py-4 rounded-xl font-bold`}>
-                    {m.tipo === 'receber' ? 'Receber' : 'Pagar'}
-                  </button>
                 </div>
               </div>
             ))
