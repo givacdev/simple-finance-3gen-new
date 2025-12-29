@@ -33,8 +33,56 @@ export default function ContasPagar() {
       .from('contas_pagar')
       .select('*, fornecedores(nome)')
       .eq('user_id', userId)
+      .eq('pago', false) // só pendentes
       .order('data_vencimento', { ascending: true });
     setContas(data || []);
+  };
+
+  const handlePagar = async (contaId: string) => {
+    if (!confirm('Confirmar pagamento desta parcela?')) return;
+
+    try {
+      // 1. Busca a conta
+      const { data: conta } = await supabase
+        .from('contas_pagar')
+        .select('*')
+        .eq('id', contaId)
+        .single();
+
+      // 2. Cria lançamento no caixa (categoria "Pagamentos")
+      const { data: cat } = await supabase
+        .from('categorias_caixa')
+        .select('id')
+        .or('nome.eq.Pagamentos,padrao.eq.true')
+        .limit(1)
+        .single();
+
+      const { data: movimento } = await supabase.from('movimentos_caixa').insert({
+        user_id: user.id,
+        descricao: `Pagamento - Fatura #${conta.fatura} - ${conta.fornecedores.nome}`,
+        valor: conta.valor_parcela,
+        tipo: 'saida',
+        categoria_id: cat.id,
+        data: new Date().toISOString().split('T')[0],
+      }).select().single();
+
+      // 3. Atualiza a conta como paga
+      const { error } = await supabase
+        .from('contas_pagar')
+        .update({
+          pago: true,
+          data_baixa: new Date().toISOString().split('T')[0],
+          movimento_caixa_id: movimento.id
+        })
+        .eq('id', contaId);
+
+      if (error) throw error;
+
+      loadContas(user.id);
+      alert('Pagamento registrado com sucesso!');
+    } catch (error: any) {
+      alert('Erro ao pagar: ' + error.message);
+    }
   };
 
   const isVencida = (dataVencimento: string) => {
@@ -69,7 +117,7 @@ export default function ContasPagar() {
 
         <div className="divide-y divide-gray-800">
           {contas.length === 0 ? (
-            <p className="p-12 text-center text-gray-400 text-2xl">Nenhuma conta a pagar cadastrada.</p>
+            <p className="p-12 text-center text-gray-400 text-2xl">Nenhuma conta a pagar pendente.</p>
           ) : (
             contas.map((conta) => (
               <div key={conta.id} className="p-8 hover:bg-gray-800 transition">
@@ -91,7 +139,10 @@ export default function ContasPagar() {
                     </p>
                   </div>
                   <div className="text-3xl font-bold">R$ {Number(conta.valor_parcela).toFixed(2)}</div>
-                  <button className="bg-red-600 hover:bg-red-700 px-8 py-4 rounded-xl font-bold">
+                  <button 
+                    onClick={() => handlePagar(conta.id)}
+                    className="bg-red-600 hover:bg-red-700 px-8 py-4 rounded-xl font-bold"
+                  >
                     Pagar
                   </button>
                 </div>
