@@ -42,46 +42,57 @@ export default function ContasPagar() {
     if (!confirm('Confirmar pagamento desta parcela?')) return;
 
     try {
-      // 1. Busca a conta
-      const { data: conta } = await supabase
+      // 1. Busca a conta completa
+      const { data: conta, error: errorConta } = await supabase
         .from('contas_pagar')
-        .select('*')
+        .select('*, fornecedores(nome)')
         .eq('id', contaId)
         .single();
 
-      // 2. Cria lançamento no caixa (categoria "Pagamentos")
-      const { data: cat } = await supabase
+      if (errorConta) throw errorConta;
+
+      // 2. Busca a categoria "Pagamentos" (padrão do sistema)
+      const { data: catData } = await supabase
         .from('categorias_caixa')
         .select('id')
         .or('nome.eq.Pagamentos,padrao.eq.true')
         .limit(1)
         .single();
 
-      const { data: movimento } = await supabase.from('movimentos_caixa').insert({
-        user_id: user.id,
-        descricao: `Pagamento - Fatura #${conta.fatura} - ${conta.fornecedores.nome}`,
-        valor: conta.valor_parcela,
-        tipo: 'saida',
-        categoria_id: cat.id,
-        data: new Date().toISOString().split('T')[0],
-      }).select().single();
+      const categoriaId = catData?.id || null;
 
-      // 3. Atualiza a conta como paga
-      const { error } = await supabase
+      // 3. Cria lançamento no movimento de caixa
+      const { data: movimento, error: errorMovimento } = await supabase
+        .from('movimentos_caixa')
+        .insert({
+          user_id: user.id,
+          descricao: `Pagamento - Fatura #${conta.fatura} - ${conta.fornecedores.nome}`,
+          valor: conta.valor_parcela,
+          tipo: 'saida',
+          categoria_id: categoriaId,
+          data: new Date().toISOString().split('T')[0],
+        })
+        .select()
+        .single();
+
+      if (errorMovimento) throw errorMovimento;
+
+      // 4. Atualiza a conta como paga
+      const { error: errorUpdate } = await supabase
         .from('contas_pagar')
         .update({
           pago: true,
           data_baixa: new Date().toISOString().split('T')[0],
-          movimento_caixa_id: movimento.id
+          movimento_caixa_id: movimento.id,
         })
         .eq('id', contaId);
 
-      if (error) throw error;
+      if (errorUpdate) throw errorUpdate;
 
       loadContas(user.id);
       alert('Pagamento registrado com sucesso!');
     } catch (error: any) {
-      alert('Erro ao pagar: ' + error.message);
+      alert('Erro ao registrar pagamento: ' + error.message);
     }
   };
 
@@ -90,6 +101,10 @@ export default function ContasPagar() {
     hoje.setHours(0, 0, 0, 0);
     const venc = new Date(dataVencimento + 'T12:00:00');
     return venc < hoje;
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR');
   };
 
   if (!user) return null;
@@ -112,7 +127,10 @@ export default function ContasPagar() {
 
       <div className="bg-gray-900 rounded-2xl overflow-hidden">
         <div className="p-6 border-b border-gray-800">
-          <input placeholder="Buscar por fornecedor, fatura ou observação..." className="w-full p-4 bg-gray-800 rounded-lg" />
+          <input 
+            placeholder="Buscar por fornecedor, fatura ou observação..." 
+            className="w-full p-4 bg-gray-800 rounded-lg" 
+          />
         </div>
 
         <div className="divide-y divide-gray-800">
@@ -124,7 +142,9 @@ export default function ContasPagar() {
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-3xl font-bold">{conta.fornecedores?.nome || 'Sem fornecedor'}</p>
-                    <p className="text-gray-400 mt-2">Fatura #{conta.fatura} • Valor Total: R$ {Number(conta.valor_total).toFixed(2)}</p>
+                    <p className="text-gray-400 mt-2">
+                      Fatura #{conta.fatura} • Valor Total: R$ {Number(conta.valor_total).toFixed(2)}
+                    </p>
                     <p className="text-gray-500">Obs: {conta.observacoes || 'Sem observações'}</p>
                   </div>
                   {isVencida(conta.data_vencimento) && (
@@ -134,12 +154,10 @@ export default function ContasPagar() {
                 <div className="mt-6 flex justify-between items-center">
                   <div>
                     <p>PARCELA {conta.parcela_atual}/{conta.parcelas}</p>
-                    <p className="text-gray-400">
-                      VENCIMENTO {new Date(conta.data_vencimento + 'T12:00:00').toLocaleDateString('pt-BR')}
-                    </p>
+                    <p className="text-gray-400">VENCIMENTO {formatDate(conta.data_vencimento)}</p>
                   </div>
                   <div className="text-3xl font-bold">R$ {Number(conta.valor_parcela).toFixed(2)}</div>
-                  <button 
+                  <button
                     onClick={() => handlePagar(conta.id)}
                     className="bg-red-600 hover:bg-red-700 px-8 py-4 rounded-xl font-bold"
                   >
