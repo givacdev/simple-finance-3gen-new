@@ -1,44 +1,149 @@
 'use client';
 
-import Link from 'next/link';
+import { useEffect, useState } from "react";
+import { createClient } from '@supabase/supabase-js';
+import { useRouter } from 'next/navigation';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default function Relatorios() {
+  const [user, setUser] = useState<any>(null);
+  const [aba, setAba] = useState<'pagar' | 'receber' | 'caixa'>('pagar');
+  const [dataInicio, setDataInicio] = useState('');
+  const [dataFim, setDataFim] = useState('');
+  const [status, setStatus] = useState<'todos' | 'pendente' | 'pago'>('todos');
+  const [resultados, setResultados] = useState<any[]>([]);
+  const router = useRouter();
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        router.push('/');
+        return;
+      }
+      setUser(data.session.user);
+    };
+    checkSession();
+  }, [router]);
+
+  const handleFiltrar = async () => {
+    if (!user) return;
+
+    let query
+
+    if (aba === 'pagar') {
+      query = supabase
+        .from('contas_pagar')
+        .select('*, fornecedores(nome)')
+        .eq('user_id', user.id)
+        .order('data_vencimento');
+
+      if (status === 'pendente') query = query.eq('pago', false);
+      if (status === 'pago') query = query.eq('pago', true);
+    } else if (aba === 'receber') {
+      query = supabase
+        .from('contas_receber')
+        .select('*, clientes(nome)')
+        .eq('user_id', user.id)
+        .order('data_vencimento');
+
+      if (status === 'pendente') query = query.eq('recebido', false);
+      if (status === 'pago') query = query.eq('recebido', true);
+    } else { // caixa
+      query = supabase
+        .from('movimentos_caixa')
+        .select('*, categorias_caixa(nome)')
+        .eq('user_id', user.id)
+        .order('data');
+    }
+
+    if (dataInicio) query = query.gte('data_vencimento', dataInicio); // ajusta campo pra caixa
+    if (dataFim) query = query.lte('data_vencimento', dataFim);
+
+    const { data } = await query;
+    setResultados(data || []);
+  };
+
+  if (!user) return null;
+
   return (
     <div className="p-12">
-      <h1 className="text-5xl font-bold mb-8">Relatórios Financeiros</h1>
-      <p className="text-xl text-gray-400 mb-12">Exporte e analise seus dados</p>
+      <h1 className="text-5xl font-bold mb-8">Relatórios</h1>
 
-      <div className="grid md:grid-cols-3 gap-12">
-        <div className="bg-red-900/30 p-12 rounded-2xl text-center">
-          <h3 className="text-3xl font-bold mb-4">Contas a Pagar</h3>
-          <p className="text-xl text-gray-400 mb-8">Relatório completo com filtros</p>
-          <div className="flex justify-center gap-4">
-            <Link href="/relatorios/contas-pagar">
-              <button className="bg-white text-red-600 px-8 py-4 rounded-xl font-bold">Visualizar</button>
-            </Link>
+      <div className="flex gap-4 mb-8">
+        <button
+          onClick={() => setAba('pagar')}
+          className={`px-8 py-4 rounded-xl font-bold text-xl ${aba === 'pagar' ? 'bg-red-600' : 'bg-gray-700'}`}
+        >
+          Contas a Pagar
+        </button>
+        <button
+          onClick={() => setAba('receber')}
+          className={`px-8 py-4 rounded-xl font-bold text-xl ${aba === 'receber' ? 'bg-green-600' : 'bg-gray-700'}`}
+        >
+          Contas a Receber
+        </button>
+        <button
+          onClick={() => setAba('caixa')}
+          className={`px-8 py-4 rounded-xl font-bold text-xl ${aba === 'caixa' ? 'bg-blue-600' : 'bg-gray-700'}`}
+        >
+          Movimento de Caixa
+        </button>
+      </div>
+
+      <div className="bg-gray-900 p-8 rounded-3xl mb-12">
+        <h2 className="text-3xl font-bold mb-6">Filtros</h2>
+        <div className="grid md:grid-cols-4 gap-8">
+          <div>
+            <label className="block text-xl mb-2">Data Inicial</label>
+            <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} className="w-full p-4 bg-gray-800 rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-xl mb-2">Data Final</label>
+            <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} className="w-full p-4 bg-gray-800 rounded-lg" />
+          </div>
+          {aba !== 'caixa' && (
+            <div>
+              <label className="block text-xl mb-2">Status</label>
+              <select value={status} onChange={(e) => setStatus(e.target.value as any)} className="w-full p-4 bg-gray-800 rounded-lg">
+                <option value="todos">Todos</option>
+                <option value="pendente">Pendente</option>
+                <option value="pago">Pago</option>
+              </select>
+            </div>
+          )}
+          <div className="flex items-end">
+            <button onClick={handleFiltrar} className="w-full py-4 bg-blue-600 rounded-xl font-bold text-xl">
+              Filtrar
+            </button>
           </div>
         </div>
+      </div>
 
-        <div className="bg-green-900/30 p-12 rounded-2xl text-center">
-          <h3 className="text-3xl font-bold mb-4">Contas a Receber</h3>
-          <p className="text-xl text-gray-400 mb-8">Relatório completo com filtros</p>
-          <div className="flex justify-center gap-4">
-            <Link href="/relatorios/contas-receber">
-              <button className="bg-white text-green-600 px-8 py-4 rounded-xl font-bold">Visualizar</button>
-            </Link>
-          </div>
-        </div>
-
-        <div className="bg-blue-900/30 p-12 rounded-2xl text-center">
-          <h3 className="text-3xl font-bold mb-4">Fluxo de Caixa</h3>
-          <p className="text-xl text-gray-400 mb-8">Histórico completo de entradas/saídas</p>
-          <div className="flex justify-center gap-4">
-            <Link href="/relatorios/caixa">
-              <button className="bg-white text-blue-600 px-8 py-4 rounded-xl font-bold">Visualizar</button>
-            </Link>
-          </div>
+      <div className="bg-gray-900 rounded-3xl overflow-hidden">
+        <div className="p-8">
+          {resultados.length === 0 ? (
+            <p className="text-center text-gray-400 text-2xl py-12">Nenhum resultado encontrado</p>
+          ) : (
+            resultados.map((item) => (
+              <div key={item.id} className="bg-gray-800 p-6 rounded-2xl mb-4">
+                {/* Ajusta exibição baseado na aba */}
+                <p className="text-2xl font-bold">{item.descricao || item.fatura}</p>
+                <p className="text-gray-400">Data: {formatDate(item.data || item.data_vencimento)}</p>
+                <p className="text-gray-500">Valor: R$ {Number(item.valor || item.valor_parcela).toFixed(2)}</p>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>
   );
+}
+
+function formatDate(dateStr: string) {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR');
 }
