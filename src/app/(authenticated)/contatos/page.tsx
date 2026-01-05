@@ -25,6 +25,7 @@ interface Contato {
   cep?: string;
   logradouro?: string;
   numero?: string;
+  complemento?: string;
   bairro?: string;
   cidade?: string;
   uf?: string;
@@ -55,6 +56,7 @@ export default function Contatos() {
   const [cep, setCep] = useState('');
   const [logradouro, setLogradouro] = useState('');
   const [numero, setNumero] = useState('');
+  const [complemento, setComplemento] = useState('');
   const [bairro, setBairro] = useState('');
   const [cidade, setCidade] = useState('');
   const [uf, setUf] = useState('');
@@ -77,8 +79,8 @@ export default function Contatos() {
   }, [router]);
 
   useEffect(() => {
-    loadContatos(user?.id);
-  }, [aba]);
+    if (user) loadContatos(user.id);
+  }, [aba, user]);
 
   const loadContatos = async (userId: string) => {
     if (!userId) return;
@@ -89,7 +91,7 @@ export default function Contatos() {
       .from(tabela)
       .select('*')
       .eq('user_id', userId)
-      .order('nome');
+      .order('nome', { ascending: true });
 
     if (aba === 'clientes') {
       setClientes((data || []).map(c => ({ ...c, type: 'cliente' as ContatoType })));
@@ -99,28 +101,29 @@ export default function Contatos() {
   };
 
   const handleCepBlur = async () => {
-    if (cep.length < 8) return;
+    if (cep.replace(/\D/g, '').length < 8) return;
 
     const cepLimpo = cep.replace(/\D/g, '');
     try {
       const res = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
       const data = await res.json();
       if (data.erro) {
-        alert('CEP inválido');
+        alert('CEP não encontrado');
         return;
       }
       setLogradouro(data.logradouro || '');
       setBairro(data.bairro || '');
       setCidade(data.localidade || '');
       setUf(data.uf || '');
-    } catch {
+      setComplemento(data.complemento || '');
+    } catch (err) {
       alert('Erro ao buscar CEP');
     }
   };
 
   const handleSalvar = async () => {
-    if (!nome || !codigo) {
-      alert('Preencha nome e código');
+    if (!nome.trim() || !codigo.trim()) {
+      alert('Nome e código são obrigatórios');
       return;
     }
 
@@ -128,49 +131,46 @@ export default function Contatos() {
 
     const dados = {
       user_id: user.id,
-      nome: nome.toUpperCase(),
-      codigo: codigo.toUpperCase(),
+      nome: nome.toUpperCase().trim(),
+      codigo: codigo.toUpperCase().trim(),
       recorrente,
       valor_mensal: recorrente ? Number(valorMensal || 0) : 0,
       dia_vencimento: recorrente ? Number(diaVencimento) : 1,
       frequencia: recorrente ? frequencia : 'mensal',
       parcelas_totais: recorrente ? Number(parcelasTotais || 0) : 0,
       ativo: true,
-      cep: cep || null,
-      logradouro: logradouro || null,
-      numero: numero || null,
-      bairro: bairro || null,
-      cidade: cidade || null,
-      uf: uf || null,
-      telefone_fixo: telefoneFixo || null,
-      telefone_celular: telefoneCelular || null,
-      email: emailContato || null,
-      cpf_cnpj: cpfCnpj || null,
+      cep: cep.trim() || null,
+      logradouro: logradouro.trim() || null,
+      numero: numero.trim() || null,
+      complemento: complemento.trim() || null,
+      bairro: bairro.trim() || null,
+      cidade: cidade.trim() || null,
+      uf: uf.toUpperCase().trim() || null,
+      telefone_fixo: telefoneFixo.trim() || null,
+      telefone_celular: telefoneCelular.trim() || null,
+      email: emailContato.trim() || null,
+      cpf_cnpj: cpfCnpj.trim() || null,
     };
 
-    if (editando) {
-      const { error } = await supabase
-        .from(tabela)
-        .update(dados)
-        .eq('id', editando.id);
+    try {
+      if (editando) {
+        const { error } = await supabase
+          .from(tabela)
+          .update(dados)
+          .eq('id', editando.id);
 
-      if (error) {
-        alert('Erro ao salvar: ' + error.message);
-        return;
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from(tabela).insert(dados);
+        if (error) throw error;
       }
-    } else {
-      const { error } = await supabase
-        .from(tabela)
-        .insert(dados);
 
-      if (error) {
-        alert('Erro ao salvar: ' + error.message);
-        return;
-      }
+      resetForm();
+      loadContatos(user.id);
+      alert('Contato salvo com sucesso!');
+    } catch (error: any) {
+      alert('Erro ao salvar: ' + error.message);
     }
-
-    resetForm();
-    loadContatos(user.id);
   };
 
   const resetForm = () => {
@@ -187,6 +187,7 @@ export default function Contatos() {
     setCep('');
     setLogradouro('');
     setNumero('');
+    setComplemento('');
     setBairro('');
     setCidade('');
     setUf('');
@@ -204,9 +205,9 @@ export default function Contatos() {
   const abrirEdicao = (contato: Contato) => {
     setEditando(contato);
     setTipoNovo(contato.type);
-    setNome(contato.nome);
-    setCodigo(contato.codigo);
-    setRecorrente(contato.recorrente);
+    setNome(contato.nome || '');
+    setCodigo(contato.codigo || '');
+    setRecorrente(contato.recorrente || false);
     setValorMensal(contato.valor_mensal?.toString() || '');
     setDiaVencimento(contato.dia_vencimento?.toString() || '1');
     setFrequencia(contato.frequencia || 'mensal');
@@ -214,6 +215,7 @@ export default function Contatos() {
     setCep(contato.cep || '');
     setLogradouro(contato.logradouro || '');
     setNumero(contato.numero || '');
+    setComplemento(contato.complemento || '');
     setBairro(contato.bairro || '');
     setCidade(contato.cidade || '');
     setUf(contato.uf || '');
@@ -311,17 +313,16 @@ export default function Contatos() {
         </div>
       </div>
 
-      {/* Modal corrigido */}
       {modalAberto && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
-          onClick={() => resetForm()}
+          onClick={resetForm}
         >
-          <div 
+          <div
             className="bg-gray-900 p-8 rounded-3xl max-w-4xl w-full max-h-screen overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-4xl font-bold mb-8">
+            <h2 className="text-4xl font-bold mb-8 text-center">
               {editando ? 'Editar' : 'Novo'} {tipoNovo === 'cliente' ? 'Cliente' : 'Fornecedor'}
             </h2>
 
@@ -351,83 +352,97 @@ export default function Contatos() {
                 <input
                   value={nome}
                   onChange={(e) => setNome(e.target.value)}
-                  className="w-full p-4 bg-gray-800 rounded-lg"
+                  className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                  placeholder="Nome completo"
                 />
               </div>
               <div>
-                <label className="block text-xl mb-2">Código (4 caracteres)</label>
+                <label className="block text-xl mb-2">Código (4 caracteres) *</label>
                 <input
                   value={codigo}
                   onChange={(e) => setCodigo(e.target.value.toUpperCase().slice(0, 4))}
                   maxLength={4}
-                  className="w-full p-4 bg-gray-800 rounded-lg"
+                  className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                  placeholder="EX: CL01"
                 />
               </div>
             </div>
 
-            {/* Endereço com CEP auto */}
-            <div className="grid md:grid-cols-3 gap-8 mb-8">
-              <div>
-                <label className="block text-xl mb-2">CEP (auto-complete)</label>
-                <input
-                  value={cep}
-                  onChange={(e) => setCep(e.target.value)}
-                  onBlur={handleCepBlur}
-                  placeholder="00000-000"
-                  className="w-full p-4 bg-gray-800 rounded-lg"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-xl mb-2">Logradouro (rua/av.)</label>
-                <input
-                  value={logradouro}
-                  onChange={(e) => setLogradouro(e.target.value)}
-                  className="w-full p-4 bg-gray-800 rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-xl mb-2">Número</label>
-                <input
-                  value={numero}
-                  onChange={(e) => setNumero(e.target.value)}
-                  className="w-full p-4 bg-gray-800 rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-xl mb-2">Bairro</label>
-                <input
-                  value={bairro}
-                  onChange={(e) => setBairro(e.target.value)}
-                  className="w-full p-4 bg-gray-800 rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-xl mb-2">Cidade</label>
-                <input
-                  value={cidade}
-                  onChange={(e) => setCidade(e.target.value)}
-                  className="w-full p-4 bg-gray-800 rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-xl mb-2">UF</label>
-                <input
-                  value={uf}
-                  onChange={(e) => setUf(e.target.value.toUpperCase())}
-                  maxLength={2}
-                  className="w-full p-4 bg-gray-800 rounded-lg"
-                />
+            {/* Endereço */}
+            <div className="mb-8">
+              <h3 className="text-2xl font-bold mb-4">Endereço</h3>
+              <div className="grid md:grid-cols-3 gap-8">
+                <div>
+                  <label className="block text-xl mb-2">CEP</label>
+                  <input
+                    value={cep}
+                    onChange={(e) => setCep(e.target.value)}
+                    onBlur={handleCepBlur}
+                    placeholder="00000-000"
+                    className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xl mb-2">Logradouro</label>
+                  <input
+                    value={logradouro}
+                    onChange={(e) => setLogradouro(e.target.value)}
+                    className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xl mb-2">Número</label>
+                  <input
+                    value={numero}
+                    onChange={(e) => setNumero(e.target.value)}
+                    className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xl mb-2">Complemento</label>
+                  <input
+                    value={complemento}
+                    onChange={(e) => setComplemento(e.target.value)}
+                    maxLength={30}
+                    className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xl mb-2">Bairro</label>
+                  <input
+                    value={bairro}
+                    onChange={(e) => setBairro(e.target.value)}
+                    className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xl mb-2">Cidade</label>
+                  <input
+                    value={cidade}
+                    onChange={(e) => setCidade(e.target.value)}
+                    className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xl mb-2">UF</label>
+                  <input
+                    value={uf}
+                    onChange={(e) => setUf(e.target.value.toUpperCase())}
+                    maxLength={2}
+                    className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Outros campos */}
+            {/* Contatos */}
             <div className="grid md:grid-cols-2 gap-8 mb-8">
               <div>
                 <label className="block text-xl mb-2">Telefone Fixo</label>
                 <input
                   value={telefoneFixo}
                   onChange={(e) => setTelefoneFixo(e.target.value)}
-                  className="w-full p-4 bg-gray-800 rounded-lg"
+                  className="w-full p-4 bg-gray-800 rounded-lg text-white"
                 />
               </div>
               <div>
@@ -435,7 +450,7 @@ export default function Contatos() {
                 <input
                   value={telefoneCelular}
                   onChange={(e) => setTelefoneCelular(e.target.value)}
-                  className="w-full p-4 bg-gray-800 rounded-lg"
+                  className="w-full p-4 bg-gray-800 rounded-lg text-white"
                 />
               </div>
               <div>
@@ -444,7 +459,7 @@ export default function Contatos() {
                   type="email"
                   value={emailContato}
                   onChange={(e) => setEmailContato(e.target.value)}
-                  className="w-full p-4 bg-gray-800 rounded-lg"
+                  className="w-full p-4 bg-gray-800 rounded-lg text-white"
                 />
               </div>
               <div>
@@ -452,7 +467,7 @@ export default function Contatos() {
                 <input
                   value={cpfCnpj}
                   onChange={(e) => setCpfCnpj(e.target.value)}
-                  className="w-full p-4 bg-gray-800 rounded-lg"
+                  className="w-full p-4 bg-gray-800 rounded-lg text-white"
                 />
               </div>
             </div>
@@ -479,7 +494,7 @@ export default function Contatos() {
                     step="0.01"
                     value={valorMensal}
                     onChange={(e) => setValorMensal(e.target.value)}
-                    className="w-full p-4 bg-gray-800 rounded-lg"
+                    className="w-full p-4 bg-gray-800 rounded-lg text-white"
                   />
                 </div>
                 <div>
@@ -490,7 +505,7 @@ export default function Contatos() {
                     max="31"
                     value={diaVencimento}
                     onChange={(e) => setDiaVencimento(e.target.value)}
-                    className="w-full p-4 bg-gray-800 rounded-lg"
+                    className="w-full p-4 bg-gray-800 rounded-lg text-white"
                   />
                 </div>
                 <div>
@@ -498,7 +513,7 @@ export default function Contatos() {
                   <select
                     value={frequencia}
                     onChange={(e) => setFrequencia(e.target.value)}
-                    className="w-full p-4 bg-gray-800 rounded-lg"
+                    className="w-full p-4 bg-gray-800 rounded-lg text-white"
                   >
                     <option value="semanal">Semanal</option>
                     <option value="quinzenal">Quinzenal</option>
@@ -512,7 +527,7 @@ export default function Contatos() {
                     min="0"
                     value={parcelasTotais}
                     onChange={(e) => setParcelasTotais(e.target.value)}
-                    className="w-full p-4 bg-gray-800 rounded-lg"
+                    className="w-full p-4 bg-gray-800 rounded-lg text-white"
                   />
                 </div>
               </div>
