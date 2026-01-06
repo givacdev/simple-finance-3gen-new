@@ -44,7 +44,7 @@ export default function Contatos() {
   const [editando, setEditando] = useState<Contato | null>(null);
   const [tipoNovo, setTipoNovo] = useState<ContatoType>('cliente');
   const [temParcelasPendentes, setTemParcelasPendentes] = useState(false);
-  const [codigoAlterado, setCodigoAlterado] = useState(false); // novo para travar recorrência
+  const [codigoAlterado, setCodigoAlterado] = useState(false);
   const router = useRouter();
 
   // Form states - dados gerais
@@ -324,6 +324,7 @@ export default function Contatos() {
 
     const tabelaConta = tipoNovo === 'cliente' ? 'contas_receber' : 'contas_pagar';
     const keyId = tipoNovo === 'cliente' ? 'cliente_id' : 'fornecedor_id';
+    const tabelaContato = tipoNovo === 'cliente' ? 'clientes' : 'fornecedores';
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
 
@@ -338,7 +339,7 @@ export default function Contatos() {
       if (errorDelete) throw errorDelete;
 
       const { error: errorUpdate } = await supabase
-        .from(tipoNovo === 'cliente' ? 'clientes' : 'fornecedores')
+        .from(tabelaContato)
         .update({ recorrente: false })
         .eq('id', editando.id);
 
@@ -534,7 +535,200 @@ export default function Contatos() {
               </div>
             </div>
 
-            {/* ... resto do modal (endereço, contatos, recorrência) igual ao anterior ... */}
+            <div className="mb-8">
+              <h3 className="text-2xl font-bold mb-4">Endereço</h3>
+              <div className="grid md:grid-cols-3 gap-8">
+                <div>
+                  <label className="block text-xl mb-2">CEP</label>
+                  <input
+                    value={cep}
+                    onChange={(e) => setCep(e.target.value)}
+                    onBlur={handleCepBlur}
+                    placeholder="00000-000"
+                    className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xl mb-2">Logradouro</label>
+                  <input
+                    value={logradouro}
+                    onChange={(e) => setLogradouro(e.target.value)}
+                    className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xl mb-2">Número</label>
+                  <input
+                    value={numero}
+                    onChange={(e) => setNumero(e.target.value)}
+                    className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xl mb-2">Complemento</label>
+                  <input
+                    value={complemento}
+                    onChange={(e) => setComplemento(e.target.value)}
+                    maxLength={30}
+                    className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xl mb-2">Bairro</label>
+                  <input
+                    value={bairro}
+                    onChange={(e) => setBairro(e.target.value)}
+                    className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xl mb-2">Cidade</label>
+                  <input
+                    value={cidade}
+                    onChange={(e) => setCidade(e.target.value)}
+                    className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xl mb-2">UF</label>
+                  <input
+                    value={uf}
+                    onChange={(e) => setUf(e.target.value.toUpperCase())}
+                    maxLength={2}
+                    className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-8 mb-8">
+              <div>
+                <label className="block text-xl mb-2">Telefone Fixo</label>
+                <input
+                  value={telefoneFixo}
+                  onChange={(e) => setTelefoneFixo(e.target.value)}
+                  className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xl mb-2">Telefone Celular</label>
+                <input
+                  value={telefoneCelular}
+                  onChange={(e) => setTelefoneCelular(e.target.value)}
+                  className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xl mb-2">E-mail</label>
+                <input
+                  type="email"
+                  value={emailContato}
+                  onChange={(e) => setEmailContato(e.target.value)}
+                  className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xl mb-2">CPF/CNPJ</label>
+                <input
+                  value={cpfCnpj}
+                  onChange={(e) => setCpfCnpj(e.target.value)}
+                  className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                />
+              </div>
+            </div>
+
+            <div className="mt-12">
+              <label className="flex items-center gap-4 text-xl cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={recorrente}
+                  onChange={(e) => setRecorrente(e.target.checked)}
+                  className="w-6 h-6"
+                />
+                Gerar contas recorrentes
+              </label>
+
+              {recorrente && (
+                <div className="mt-8 p-8 bg-gray-800 rounded-2xl">
+                  <div className="grid md:grid-cols-2 gap-8 mb-8">
+                    <div>
+                      <label className="block text-xl mb-2">Valor mensal (R$)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={valorMensal}
+                        onChange={(e) => setValorMensal(e.target.value)}
+                        className="w-full p-4 bg-gray-700 rounded-lg text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xl mb-2">Dia do vencimento</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="31"
+                        value={diaVencimento}
+                        onChange={(e) => setDiaVencimento(e.target.value)}
+                        className="w-full p-4 bg-gray-700 rounded-lg text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xl mb-2">Frequência</label>
+                      <select
+                        value={frequencia}
+                        onChange={(e) => setFrequencia(e.target.value)}
+                        className="w-full p-4 bg-gray-700 rounded-lg text-white"
+                      >
+                        <option value="mensal">Mensal</option>
+                        <option value="quinzenal">Quinzenal</option>
+                        <option value="semanal">Semanal</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xl mb-2">Parcelas totais (0 = ilimitado, máx 12)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="12"
+                        value={parcelasTotais}
+                        onChange={(e) => setParcelasTotais(e.target.value)}
+                        className="w-full p-4 bg-gray-700 rounded-lg text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-6">
+                    <button
+                      onClick={handleCancelarRecorrencia}
+                      className="px-8 py-4 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold text-xl"
+                    >
+                      Cancelar Recorrência
+                    </button>
+                    <button
+                      onClick={handleSalvarRecorrencia}
+                      className="px-8 py-4 bg-green-600 hover:bg-green-700 rounded-xl font-bold text-xl"
+                    >
+                      Salvar Recorrência
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-12 flex justify-end gap-6">
+              <button
+                onClick={resetForm}
+                className="px-8 py-4 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold text-xl"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSalvarContato}
+                className="px-8 py-4 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold text-xl"
+              >
+                Salvar Contato
+              </button>
+            </div>
           </div>
         </div>
       )}
