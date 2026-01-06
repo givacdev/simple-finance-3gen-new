@@ -43,6 +43,7 @@ export default function Contatos() {
   const [modalAberto, setModalAberto] = useState(false);
   const [editando, setEditando] = useState<Contato | null>(null);
   const [tipoNovo, setTipoNovo] = useState<ContatoType>('cliente');
+  const [temParcelasPendentes, setTemParcelasPendentes] = useState(false);
   const router = useRouter();
 
   // Form states - dados gerais
@@ -123,6 +124,43 @@ export default function Contatos() {
     }
   };
 
+  const abrirEdicao = async (contato: Contato) => {
+    setEditando(contato);
+    setTipoNovo(contato.type);
+    setNome(contato.nome || '');
+    setCodigo(contato.codigo || '');
+    setCep(contato.cep || '');
+    setLogradouro(contato.logradouro || '');
+    setNumero(contato.numero || '');
+    setComplemento(contato.complemento || '');
+    setBairro(contato.bairro || '');
+    setCidade(contato.cidade || '');
+    setUf(contato.uf || '');
+    setTelefoneFixo(contato.telefone_fixo || '');
+    setTelefoneCelular(contato.telefone_celular || '');
+    setEmailContato(contato.email || '');
+    setCpfCnpj(contato.cpf_cnpj || '');
+    setRecorrente(contato.recorrente || false);
+    setValorMensal(contato.valor_mensal?.toString() || '');
+    setDiaVencimento(contato.dia_vencimento?.toString() || '1');
+    setFrequencia(contato.frequencia || 'mensal');
+    setParcelasTotais(contato.parcelas_totais?.toString() || '0');
+
+    // Verifica parcelas pendentes para travar código
+    const tabelaConta = contato.type === 'cliente' ? 'contas_receber' : 'contas_pagar';
+    const keyId = contato.type === 'cliente' ? 'cliente_id' : 'fornecedor_id';
+
+    const { data: parcelas } = await supabase
+      .from(tabelaConta)
+      .select('id')
+      .eq(keyId, contato.id)
+      .in(tabelaConta === 'contas_receber' ? 'recebido' : 'pago', [false]);
+
+    setTemParcelasPendentes((parcelas || []).length > 0);
+
+    setModalAberto(true);
+  };
+
   const handleSalvarContato = async () => {
     if (!nome.trim() || !codigo.trim()) {
       alert('Nome e código são obrigatórios');
@@ -134,7 +172,7 @@ export default function Contatos() {
     const dados = {
       user_id: user.id,
       nome: nome.toUpperCase().trim(),
-      codigo: codigo.toUpperCase().trim(),
+      codigo: temParcelasPendentes ? editando?.codigo : codigo.toUpperCase().trim(),
       cep: cep.trim() || null,
       logradouro: logradouro.trim() || null,
       numero: numero.trim() || null,
@@ -168,6 +206,7 @@ export default function Contatos() {
       }
 
       alert('Contato salvo com sucesso!');
+      resetForm();
       loadContatos(user.id);
     } catch (error: any) {
       alert('Erro ao salvar contato: ' + error.message);
@@ -259,7 +298,6 @@ export default function Contatos() {
     hoje.setHours(0, 0, 0, 0);
 
     try {
-      // Deleta parcelas pendentes não vencidas
       const { error: errorDelete } = await supabase
         .from(tabelaConta)
         .delete()
@@ -269,9 +307,8 @@ export default function Contatos() {
 
       if (errorDelete) throw errorDelete;
 
-      // Desliga recorrência
       const { error: errorUpdate } = await supabase
-        .from(tipoNovo === 'cliente' ? 'clientes' : 'fornecedores')
+        .from(tabelaContato)
         .update({ recorrente: false })
         .eq('id', editando.id);
 
@@ -307,34 +344,11 @@ export default function Contatos() {
     setDiaVencimento('1');
     setFrequencia('mensal');
     setParcelasTotais('0');
+    setTemParcelasPendentes(false);
   };
 
   const abrirNovo = () => {
     resetForm();
-    setModalAberto(true);
-  };
-
-  const abrirEdicao = (contato: Contato) => {
-    setEditando(contato);
-    setTipoNovo(contato.type);
-    setNome(contato.nome || '');
-    setCodigo(contato.codigo || '');
-    setCep(contato.cep || '');
-    setLogradouro(contato.logradouro || '');
-    setNumero(contato.numero || '');
-    setComplemento(contato.complemento || '');
-    setBairro(contato.bairro || '');
-    setCidade(contato.cidade || '');
-    setUf(contato.uf || '');
-    setTelefoneFixo(contato.telefone_fixo || '');
-    setTelefoneCelular(contato.telefone_celular || '');
-    setEmailContato(contato.email || '');
-    setCpfCnpj(contato.cpf_cnpj || '');
-    setRecorrente(contato.recorrente || false);
-    setValorMensal(contato.valor_mensal?.toString() || '');
-    setDiaVencimento(contato.dia_vencimento?.toString() || '1');
-    setFrequencia(contato.frequencia || 'mensal');
-    setParcelasTotais(contato.parcelas_totais?.toString() || '0');
     setModalAberto(true);
   };
 
@@ -426,11 +440,19 @@ export default function Contatos() {
       </div>
 
       {modalAberto && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={resetForm}>
-          <div className="bg-gray-900 p-8 rounded-3xl max-w-4xl w-full max-h-screen overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-4xl font-bold mb-8 text-center">
-              {editando ? 'Editar' : 'Novo'} {tipoNovo === 'cliente' ? 'Cliente' : 'Fornecedor'}
-            </h2>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 p-8 rounded-3xl max-w-4xl w-full max-h-screen overflow-y-auto">
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-4xl font-bold">
+                {editando ? 'Editar' : 'Novo'} {tipoNovo === 'cliente' ? 'Cliente' : 'Fornecedor'}
+              </h2>
+              <button
+                onClick={resetForm}
+                className="text-4xl text-gray-400 hover:text-white"
+              >
+                ×
+              </button>
+            </div>
 
             {!editando && (
               <div className="mb-8">
@@ -468,9 +490,13 @@ export default function Contatos() {
                   value={codigo}
                   onChange={(e) => setCodigo(e.target.value.toUpperCase().slice(0, 4))}
                   maxLength={4}
-                  className="w-full p-4 bg-gray-800 rounded-lg text-white"
+                  disabled={temParcelasPendentes}
+                  className={`w-full p-4 bg-gray-800 rounded-lg text-white ${temParcelasPendentes ? 'opacity-50 cursor-not-allowed' : ''}`}
                   placeholder="EX: CL01"
                 />
+                {temParcelasPendentes && (
+                  <p className="text-red-400 text-sm mt-2">Código não pode ser alterado (há parcelas pendentes)</p>
+                )}
               </div>
             </div>
 
@@ -628,8 +654,9 @@ export default function Contatos() {
                       <input
                         type="number"
                         min="0"
+                        max="12"
                         value={parcelasTotais}
-                        onChange={(e) => setParcelasTotais(e.target.value > '12' ? '12' : e.target.value)}
+                        onChange={(e) => setParcelasTotais(e.target.value)}
                         className="w-full p-4 bg-gray-700 rounded-lg text-white"
                       />
                     </div>
