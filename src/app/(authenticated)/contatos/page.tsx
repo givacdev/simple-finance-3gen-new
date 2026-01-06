@@ -154,7 +154,7 @@ export default function Contatos() {
       .from(tabelaConta)
       .select('id')
       .eq(keyId, contato.id)
-      .in(tabelaConta === 'contas_receber' ? 'recebido' : 'pago', [false]);
+      .eq(contato.type === 'cliente' ? 'recebido' : 'pago', false);
 
     setTemParcelasPendentes((parcelas || []).length > 0);
 
@@ -294,6 +294,7 @@ export default function Contatos() {
 
     const tabelaConta = tipoNovo === 'cliente' ? 'contas_receber' : 'contas_pagar';
     const keyId = tipoNovo === 'cliente' ? 'cliente_id' : 'fornecedor_id';
+    const tabelaContato = tipoNovo === 'cliente' ? 'clientes' : 'fornecedores'; // <--- CORRIGIDO AQUI
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
 
