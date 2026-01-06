@@ -18,7 +18,6 @@ interface Contato {
   recorrente: boolean;
   valor_mensal: number;
   dia_vencimento: number;
-  frequencia: string;
   parcelas_totais: number;
   ativo: boolean;
   type: ContatoType;
@@ -47,7 +46,7 @@ export default function Contatos() {
   const [codigoAlterado, setCodigoAlterado] = useState(false);
   const router = useRouter();
 
-  // Form states - dados gerais
+  // Form states
   const [nome, setNome] = useState('');
   const [codigo, setCodigo] = useState('');
   const [cep, setCep] = useState('');
@@ -61,12 +60,9 @@ export default function Contatos() {
   const [telefoneCelular, setTelefoneCelular] = useState('');
   const [emailContato, setEmailContato] = useState('');
   const [cpfCnpj, setCpfCnpj] = useState('');
-
-  // Form states - recorrência
   const [recorrente, setRecorrente] = useState(false);
   const [valorMensal, setValorMensal] = useState('');
   const [diaVencimento, setDiaVencimento] = useState('1');
-  const [frequencia, setFrequencia] = useState('mensal');
   const [parcelasTotais, setParcelasTotais] = useState('0');
 
   useEffect(() => {
@@ -144,11 +140,9 @@ export default function Contatos() {
     setRecorrente(contato.recorrente || false);
     setValorMensal(contato.valor_mensal?.toString() || '');
     setDiaVencimento(contato.dia_vencimento?.toString() || '1');
-    setFrequencia(contato.frequencia || 'mensal');
     setParcelasTotais(contato.parcelas_totais?.toString() || '0');
     setCodigoAlterado(false);
 
-    // Verifica parcelas pendentes para travar código
     const tabelaConta = contato.type === 'cliente' ? 'contas_receber' : 'contas_pagar';
     const keyId = contato.type === 'cliente' ? 'cliente_id' : 'fornecedor_id';
 
@@ -213,6 +207,7 @@ export default function Contatos() {
 
       alert('Contato salvo com sucesso!');
       setCodigoAlterado(false);
+      resetForm();
       loadContatos(user.id);
     } catch (error: any) {
       alert('Erro ao salvar contato: ' + error.message);
@@ -239,7 +234,6 @@ export default function Contatos() {
       recorrente: true,
       valor_mensal: Number(valorMensal || 0),
       dia_vencimento: Number(diaVencimento),
-      frequencia,
       parcelas_totais: Number(parcelasTotais || 0),
     };
 
@@ -252,16 +246,11 @@ export default function Contatos() {
       if (error) throw error;
 
       let dataVencimento = new Date();
-      dataVencimento.setDate(Number(diaVencimento));
+      const dia = Number(diaVencimento);
+      dataVencimento.setDate(dia);
 
       if (dataVencimento < new Date()) {
-        if (frequencia === 'semanal') {
-          dataVencimento.setDate(dataVencimento.getDate() + 7);
-        } else if (frequencia === 'quinzenal') {
-          dataVencimento.setDate(dataVencimento.getDate() + 15);
-        } else {
-          dataVencimento.setMonth(dataVencimento.getMonth() + 1);
-        }
+        dataVencimento.setMonth(dataVencimento.getMonth() + 1);
       }
 
       const maxParcelas = 12;
@@ -279,13 +268,7 @@ export default function Contatos() {
           .limit(1);
 
         if (existente && existente.length > 0) {
-          if (frequencia === 'semanal') {
-            dataVencimento.setDate(dataVencimento.getDate() + 7);
-          } else if (frequencia === 'quinzenal') {
-            dataVencimento.setDate(dataVencimento.getDate() + 15);
-          } else {
-            dataVencimento.setMonth(dataVencimento.getMonth() + 1);
-          }
+          dataVencimento.setMonth(dataVencimento.getMonth() + 1);
           continue;
         }
 
@@ -302,17 +285,11 @@ export default function Contatos() {
         });
 
         parcelasGeradas++;
-
-        if (frequencia === 'semanal') {
-          dataVencimento.setDate(dataVencimento.getDate() + 7);
-        } else if (frequencia === 'quinzenal') {
-          dataVencimento.setDate(dataVencimento.getDate() + 15);
-        } else {
-          dataVencimento.setMonth(dataVencimento.getMonth() + 1);
-        }
+        dataVencimento.setMonth(dataVencimento.getMonth() + 1);
       }
 
       alert(`Recorrência salva e ${parcelasGeradas} parcelas geradas com sucesso!`);
+      resetForm();
       loadContatos(user.id);
     } catch (error: any) {
       alert('Erro ao salvar recorrência: ' + error.message);
@@ -324,7 +301,6 @@ export default function Contatos() {
 
     const tabelaConta = tipoNovo === 'cliente' ? 'contas_receber' : 'contas_pagar';
     const keyId = tipoNovo === 'cliente' ? 'cliente_id' : 'fornecedor_id';
-    const tabelaContato = tipoNovo === 'cliente' ? 'clientes' : 'fornecedores';
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
 
@@ -339,7 +315,7 @@ export default function Contatos() {
       if (errorDelete) throw errorDelete;
 
       const { error: errorUpdate } = await supabase
-        .from(tabelaContato)
+        .from(tipoNovo === 'cliente' ? 'clientes' : 'fornecedores')
         .update({ recorrente: false })
         .eq('id', editando.id);
 
@@ -373,7 +349,6 @@ export default function Contatos() {
     setRecorrente(false);
     setValorMensal('');
     setDiaVencimento('1');
-    setFrequencia('mensal');
     setParcelasTotais('0');
     setTemParcelasPendentes(false);
     setCodigoAlterado(false);
@@ -443,7 +418,7 @@ export default function Contatos() {
                   <p className="text-3xl font-bold">{contato.nome} ({contato.codigo})</p>
                   {contato.recorrente && (
                     <p className="text-gray-400 mt-2">
-                      Recorrente: R$ {Number(contato.valor_mensal).toFixed(2)} todo dia {contato.dia_vencimento} ({contato.frequencia})
+                      Recorrente: R$ {Number(contato.valor_mensal).toFixed(2)} todo dia {contato.dia_vencimento} (mensal)
                       {contato.parcelas_totais > 0 && ` • ${contato.parcelas_totais} parcelas`}
                     </p>
                   )}
@@ -472,19 +447,11 @@ export default function Contatos() {
       </div>
 
       {modalAberto && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 p-8 rounded-3xl max-w-4xl w-full max-h-screen overflow-y-auto">
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-4xl font-bold">
-                {editando ? 'Editar' : 'Novo'} {tipoNovo === 'cliente' ? 'Cliente' : 'Fornecedor'}
-              </h2>
-              <button
-                onClick={resetForm}
-                className="text-4xl text-gray-400 hover:text-white"
-              >
-                ×
-              </button>
-            </div>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={resetForm}>
+          <div className="bg-gray-900 p-8 rounded-3xl max-w-4xl w-full max-h-screen overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-4xl font-bold mb-8 text-center">
+              {editando ? 'Editar' : 'Novo'} {tipoNovo === 'cliente' ? 'Cliente' : 'Fornecedor'}
+            </h2>
 
             {!editando && (
               <div className="mb-8">
@@ -535,6 +502,7 @@ export default function Contatos() {
               </div>
             </div>
 
+            {/* Endereço */}
             <div className="mb-8">
               <h3 className="text-2xl font-bold mb-4">Endereço</h3>
               <div className="grid md:grid-cols-3 gap-8">
@@ -601,6 +569,7 @@ export default function Contatos() {
               </div>
             </div>
 
+            {/* Contatos */}
             <div className="grid md:grid-cols-2 gap-8 mb-8">
               <div>
                 <label className="block text-xl mb-2">Telefone Fixo</label>
@@ -637,6 +606,7 @@ export default function Contatos() {
               </div>
             </div>
 
+            {/* Recorrência simplificada */}
             <div className="mt-12">
               <label className="flex items-center gap-4 text-xl cursor-pointer">
                 <input
@@ -645,7 +615,7 @@ export default function Contatos() {
                   onChange={(e) => setRecorrente(e.target.checked)}
                   className="w-6 h-6"
                 />
-                Gerar contas recorrentes
+                Gerar contas recorrentes (mensal)
               </label>
 
               {recorrente && (
@@ -672,19 +642,7 @@ export default function Contatos() {
                         className="w-full p-4 bg-gray-700 rounded-lg text-white"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xl mb-2">Frequência</label>
-                      <select
-                        value={frequencia}
-                        onChange={(e) => setFrequencia(e.target.value)}
-                        className="w-full p-4 bg-gray-700 rounded-lg text-white"
-                      >
-                        <option value="mensal">Mensal</option>
-                        <option value="quinzenal">Quinzenal</option>
-                        <option value="semanal">Semanal</option>
-                      </select>
-                    </div>
-                    <div>
+                    <div className="md:col-span-2">
                       <label className="block text-xl mb-2">Parcelas totais (0 = ilimitado, máx 12)</label>
                       <input
                         type="number"
