@@ -157,14 +157,14 @@ export default function Contatos() {
 
         if (error) throw error;
       } else {
-        const { data: newData, error } = await supabase
+        const { data, error } = await supabase
           .from(tabela)
           .insert(dados)
           .select()
           .single();
 
         if (error) throw error;
-        setEditando({ ...newData, type: tipoNovo } as Contato);
+        setEditando({ ...data, type: tipoNovo } as Contato);
       }
 
       alert('Contato salvo com sucesso!');
@@ -194,15 +194,13 @@ export default function Contatos() {
     };
 
     try {
-      // Atualiza configuração recorrente
-      const { error: errorUpdate } = await supabase
+      const { error } = await supabase
         .from(tabelaContato)
         .update(dadosRecorrencia)
         .eq('id', contatoId);
 
-      if (errorUpdate) throw errorUpdate;
+      if (error) throw error;
 
-      // Gera até 12 parcelas
       let dataVencimento = new Date();
       dataVencimento.setDate(Number(diaVencimento));
 
@@ -247,9 +245,43 @@ export default function Contatos() {
 
       alert(`Recorrência salva e ${parcelasGeradas} parcelas geradas com sucesso!`);
       loadContatos(user.id);
-      setRecorrente(false);
     } catch (error: any) {
       alert('Erro ao salvar recorrência: ' + error.message);
+    }
+  };
+
+  const handleCancelarRecorrencia = async () => {
+    if (!editando) return;
+
+    const tabelaConta = tipoNovo === 'cliente' ? 'contas_receber' : 'contas_pagar';
+    const keyId = tipoNovo === 'cliente' ? 'cliente_id' : 'fornecedor_id';
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    try {
+      // Deleta parcelas pendentes não vencidas
+      const { error: errorDelete } = await supabase
+        .from(tabelaConta)
+        .delete()
+        .eq(keyId, editando.id)
+        .eq(tipoNovo === 'cliente' ? 'recebido' : 'pago', false)
+        .gt('data_vencimento', hoje.toISOString().split('T')[0]);
+
+      if (errorDelete) throw errorDelete;
+
+      // Desliga recorrência
+      const { error: errorUpdate } = await supabase
+        .from(tipoNovo === 'cliente' ? 'clientes' : 'fornecedores')
+        .update({ recorrente: false })
+        .eq('id', editando.id);
+
+      if (errorUpdate) throw errorUpdate;
+
+      alert('Recorrência cancelada e parcelas futuras deletadas com sucesso!');
+      setRecorrente(false);
+      loadContatos(user.id);
+    } catch (error: any) {
+      alert('Erro ao cancelar recorrência: ' + error.message);
     }
   };
 
@@ -596,7 +628,6 @@ export default function Contatos() {
                       <input
                         type="number"
                         min="0"
-                        max="12"
                         value={parcelasTotais}
                         onChange={(e) => setParcelasTotais(e.target.value > '12' ? '12' : e.target.value)}
                         className="w-full p-4 bg-gray-700 rounded-lg text-white"
@@ -606,7 +637,7 @@ export default function Contatos() {
 
                   <div className="flex justify-end gap-6">
                     <button
-                      onClick={() => setRecorrente(false)}
+                      onClick={handleCancelarRecorrencia}
                       className="px-8 py-4 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold text-xl"
                     >
                       Cancelar Recorrência
