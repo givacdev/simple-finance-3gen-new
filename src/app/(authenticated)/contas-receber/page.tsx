@@ -20,14 +20,16 @@ interface Conta {
   parcelas: number;
   data_vencimento: string;
   recebido: boolean;
+  data_recebimento?: string;
+  juros?: number;
   observacoes?: string;
 }
 
 export default function ContasReceber() {
   const [user, setUser] = useState<any>(null);
-  const [contas, setContas] = useState<Conta[]>([]);
+  const [contasPendentes, setContasPendentes] = useState<Conta[]>([]);
   const [busca, setBusca] = useState('');
-  const [modalPagamento, setModalPagamento] = useState<Conta | null>(null);
+  const [modalRecebimento, setModalRecebimento] = useState<Conta | null>(null);
   const [valorJuros, setValorJuros] = useState('0');
   const router = useRouter();
 
@@ -39,22 +41,23 @@ export default function ContasReceber() {
         return;
       }
       setUser(data.session.user);
-      loadContas(data.session.user.id);
+      loadContasPendentes(data.session.user.id);
     };
     checkSession();
   }, [router]);
 
-  const loadContas = async (userId: string) => {
+  const loadContasPendentes = async (userId: string) => {
     const { data } = await supabase
       .from('contas_receber')
       .select('*, cliente:clientes(nome)')
       .eq('user_id', userId)
+      .eq('recebido', false)
       .order('data_vencimento', { ascending: true });
 
-    setContas(data || []);
+    setContasPendentes(data || []);
   };
 
-  const contasFiltradas = contas.filter(conta => {
+  const contasFiltradas = contasPendentes.filter(conta => {
     const termo = busca.toLowerCase();
     return (
       conta.cliente?.nome?.toLowerCase().includes(termo) ||
@@ -64,17 +67,36 @@ export default function ContasReceber() {
   });
 
   const handleReceber = async () => {
-    if (!modalPagamento) return;
+    if (!modalRecebimento) return;
+
+    const hoje = new Date().toISOString().split('T')[0];
+    const juros = estaVencida(modalRecebimento.data_vencimento) ? Number(valorJuros || 0) : 0;
+    const valorFinal = Number(modalRecebimento.valor_parcela) + juros;
 
     try {
-      await supabase
+      const { error } = await supabase
         .from('contas_receber')
-        .update({ recebido: true })
-        .eq('id', modalPagamento.id);
+        .update({
+          recebido: true,
+          data_recebimento: hoje,
+          juros: juros,
+        })
+        .eq('id', modalRecebimento.id);
 
-      alert('Conta recebida com sucesso!');
-      setModalPagamento(null);
-      loadContas(user!.id);
+      if (error) throw error;
+
+      await supabase.from('movimentos_caixa').insert({
+        user_id: user.id,
+        descricao: `Recebimento: ${modalRecebimento.fatura} - ${modalRecebimento.cliente?.nome || ''}`,
+        valor: valorFinal,
+        tipo: 'entrada',
+        data: hoje,
+      });
+
+      alert('Conta recebida e registrada no caixa com sucesso!');
+      setModalRecebimento(null);
+      setValorJuros('0');
+      loadContasPendentes(user!.id);
     } catch (error: any) {
       alert('Erro ao receber conta: ' + error.message);
     }
@@ -114,7 +136,9 @@ export default function ContasReceber() {
       <div className="bg-gray-900 rounded-2xl overflow-hidden">
         <div className="divide-y divide-gray-800">
           {contasFiltradas.length === 0 ? (
-            <p className="p-12 text-center text-gray-400 text-2xl">Nenhuma conta encontrada.</p>
+            <p className="p-12 text-center text-gray-400 text-2xl">
+              {contasPendentes.length === 0 ? 'Nenhuma conta a receber pendente.' : 'Nenhuma conta encontrada com o filtro.'}
+            </p>
           ) : (
             contasFiltradas.map((conta) => (
               <div key={conta.id} className="p-8 hover:bg-gray-800 transition flex justify-between items-center">
@@ -134,15 +158,10 @@ export default function ContasReceber() {
                 <div className="text-right">
                   <p className="text-4xl font-bold text-green-400">R$ {Number(conta.valor_parcela).toFixed(2)}</p>
                   <button 
-                    onClick={() => setModalPagamento(conta)}
-                    disabled={conta.recebido}
-                    className={`mt-4 px-8 py-4 rounded-xl font-bold text-xl ${
-                      conta.recebido 
-                        ? 'bg-gray-600 cursor-not-allowed' 
-                        : 'bg-green-600 hover:bg-green-700'
-                    }`}
+                    onClick={() => setModalRecebimento(conta)}
+                    className="mt-4 bg-green-600 hover:bg-green-700 px-8 py-4 rounded-xl font-bold text-xl"
                   >
-                    {conta.recebido ? 'Recebida' : 'Receber'}
+                    Receber
                   </button>
                 </div>
               </div>
@@ -151,23 +170,22 @@ export default function ContasReceber() {
         </div>
       </div>
 
-      {/* Modal de Recebimento */}
-      {modalPagamento && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setModalPagamento(null)}>
+      {modalRecebimento && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setModalRecebimento(null)}>
           <div className="bg-gray-900 p-8 rounded-3xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-3xl font-bold text-green-400 mb-6 text-center">Receber Conta</h2>
             
             <p className="text-xl mb-4">
-              <strong>Cliente:</strong> {modalPagamento.cliente?.nome}
+              <strong>Cliente:</strong> {modalRecebimento.cliente?.nome}
             </p>
             <p className="text-xl mb-4">
-              <strong>Fatura:</strong> #{modalPagamento.fatura}
+              <strong>Fatura:</strong> #{modalRecebimento.fatura}
             </p>
             <p className="text-xl mb-6">
-              <strong>Valor:</strong> R$ {Number(modalPagamento.valor_parcela).toFixed(2)}
+              <strong>Valor da parcela:</strong> R$ {Number(modalRecebimento.valor_parcela).toFixed(2)}
             </p>
 
-            {estaVencida(modalPagamento.data_vencimento) && (
+            {estaVencida(modalRecebimento.data_vencimento) && (
               <div className="mb-6">
                 <label className="block text-xl mb-2">Juros (opcional)</label>
                 <input
@@ -178,13 +196,15 @@ export default function ContasReceber() {
                   placeholder="0.00"
                   className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
                 />
-                <p className="text-red-400 text-sm mt-2">Conta vencida em {new Date(modalPagamento.data_vencimento).toLocaleDateString('pt-BR')}</p>
+                <p className="text-red-400 text-sm mt-2">
+                  Conta vencida em {new Date(modalRecebimento.data_vencimento).toLocaleDateString('pt-BR')}
+                </p>
               </div>
             )}
 
             <div className="flex justify-end gap-6">
               <button
-                onClick={() => setModalPagamento(null)}
+                onClick={() => setModalRecebimento(null)}
                 className="px-8 py-4 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold text-xl"
               >
                 Cancelar

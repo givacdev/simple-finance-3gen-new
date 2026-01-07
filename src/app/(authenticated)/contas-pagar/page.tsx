@@ -20,14 +20,17 @@ interface Conta {
   parcelas: number;
   data_vencimento: string;
   pago: boolean;
+  data_pagamento?: string;
+  juros?: number;
   observacoes?: string;
 }
 
 export default function ContasPagar() {
   const [user, setUser] = useState<any>(null);
-  const [contas, setContas] = useState<Conta[]>([]);
+  const [contasPendentes, setContasPendentes] = useState<Conta[]>([]);
   const [busca, setBusca] = useState('');
   const [modalPagamento, setModalPagamento] = useState<Conta | null>(null);
+  const [valorJuros, setValorJuros] = useState('0');
   const router = useRouter();
 
   useEffect(() => {
@@ -38,22 +41,23 @@ export default function ContasPagar() {
         return;
       }
       setUser(data.session.user);
-      loadContas(data.session.user.id);
+      loadContasPendentes(data.session.user.id);
     };
     checkSession();
   }, [router]);
 
-  const loadContas = async (userId: string) => {
+  const loadContasPendentes = async (userId: string) => {
     const { data } = await supabase
       .from('contas_pagar')
       .select('*, fornecedor:fornecedores(nome)')
       .eq('user_id', userId)
+      .eq('pago', false)
       .order('data_vencimento', { ascending: true });
 
-    setContas(data || []);
+    setContasPendentes(data || []);
   };
 
-  const contasFiltradas = contas.filter(conta => {
+  const contasFiltradas = contasPendentes.filter(conta => {
     const termo = busca.toLowerCase();
     return (
       conta.fornecedor?.nome?.toLowerCase().includes(termo) ||
@@ -65,15 +69,34 @@ export default function ContasPagar() {
   const handlePagar = async () => {
     if (!modalPagamento) return;
 
+    const hoje = new Date().toISOString().split('T')[0];
+    const juros = estaVencida(modalPagamento.data_vencimento) ? Number(valorJuros || 0) : 0;
+    const valorFinal = Number(modalPagamento.valor_parcela) + juros;
+
     try {
-      await supabase
+      const { error } = await supabase
         .from('contas_pagar')
-        .update({ pago: true })
+        .update({
+          pago: true,
+          data_pagamento: hoje,
+          juros: juros,
+        })
         .eq('id', modalPagamento.id);
 
-      alert('Conta paga com sucesso!');
+      if (error) throw error;
+
+      await supabase.from('movimentos_caixa').insert({
+        user_id: user.id,
+        descricao: `Pagamento: ${modalPagamento.fatura} - ${modalPagamento.fornecedor?.nome || ''}`,
+        valor: valorFinal,
+        tipo: 'saida',
+        data: hoje,
+      });
+
+      alert('Conta paga e registrada no caixa com sucesso!');
       setModalPagamento(null);
-      loadContas(user!.id);
+      setValorJuros('0');
+      loadContasPendentes(user!.id);
     } catch (error: any) {
       alert('Erro ao pagar conta: ' + error.message);
     }
@@ -113,7 +136,9 @@ export default function ContasPagar() {
       <div className="bg-gray-900 rounded-2xl overflow-hidden">
         <div className="divide-y divide-gray-800">
           {contasFiltradas.length === 0 ? (
-            <p className="p-12 text-center text-gray-400 text-2xl">Nenhuma conta encontrada.</p>
+            <p className="p-12 text-center text-gray-400 text-2xl">
+              {contasPendentes.length === 0 ? 'Nenhuma conta a pagar pendente.' : 'Nenhuma conta encontrada com o filtro.'}
+            </p>
           ) : (
             contasFiltradas.map((conta) => (
               <div key={conta.id} className="p-8 hover:bg-gray-800 transition flex justify-between items-center">
@@ -134,14 +159,9 @@ export default function ContasPagar() {
                   <p className="text-4xl font-bold text-red-400">R$ {Number(conta.valor_parcela).toFixed(2)}</p>
                   <button 
                     onClick={() => setModalPagamento(conta)}
-                    disabled={conta.pago}
-                    className={`mt-4 px-8 py-4 rounded-xl font-bold text-xl ${
-                      conta.pago 
-                        ? 'bg-gray-600 cursor-not-allowed' 
-                        : 'bg-red-600 hover:bg-red-700'
-                    }`}
+                    className="mt-4 bg-red-600 hover:bg-red-700 px-8 py-4 rounded-xl font-bold text-xl"
                   >
-                    {conta.pago ? 'Paga' : 'Pagar'}
+                    Pagar
                   </button>
                 </div>
               </div>
@@ -150,7 +170,6 @@ export default function ContasPagar() {
         </div>
       </div>
 
-      {/* Modal de Pagamento */}
       {modalPagamento && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setModalPagamento(null)}>
           <div className="bg-gray-900 p-8 rounded-3xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
@@ -163,7 +182,7 @@ export default function ContasPagar() {
               <strong>Fatura:</strong> #{modalPagamento.fatura}
             </p>
             <p className="text-xl mb-6">
-              <strong>Valor:</strong> R$ {Number(modalPagamento.valor_parcela).toFixed(2)}
+              <strong>Valor da parcela:</strong> R$ {Number(modalPagamento.valor_parcela).toFixed(2)}
             </p>
 
             {estaVencida(modalPagamento.data_vencimento) && (
@@ -172,6 +191,8 @@ export default function ContasPagar() {
                 <input
                   type="number"
                   step="0.01"
+                  value={valorJuros}
+                  onChange={(e) => setValorJuros(e.target.value)}
                   placeholder="0.00"
                   className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
                 />
