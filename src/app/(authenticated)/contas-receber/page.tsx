@@ -27,6 +27,8 @@ export default function ContasReceber() {
   const [user, setUser] = useState<any>(null);
   const [contas, setContas] = useState<Conta[]>([]);
   const [busca, setBusca] = useState('');
+  const [modalPagamento, setModalPagamento] = useState<Conta | null>(null);
+  const [valorJuros, setValorJuros] = useState('0');
   const router = useRouter();
 
   useEffect(() => {
@@ -61,13 +63,40 @@ export default function ContasReceber() {
     );
   });
 
+  const handleReceber = async () => {
+    if (!modalPagamento) return;
+
+    try {
+      await supabase
+        .from('contas_receber')
+        .update({ recebido: true })
+        .eq('id', modalPagamento.id);
+
+      alert('Conta recebida com sucesso!');
+      setModalPagamento(null);
+      loadContas(user!.id);
+    } catch (error: any) {
+      alert('Erro ao receber conta: ' + error.message);
+    }
+  };
+
+  const estaVencida = (dataVencimento: string) => {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const vencimento = new Date(dataVencimento);
+    return vencimento < hoje;
+  };
+
   if (!user) return null;
 
   return (
     <div className="p-12">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-5xl font-bold text-green-400">Contas a Receber</h1>
-        <button className="bg-green-600 hover:bg-green-700 px-8 py-4 rounded-xl font-bold text-xl">
+        <button 
+          onClick={() => router.push('/contas-receber/nova')}
+          className="bg-green-600 hover:bg-green-700 px-8 py-4 rounded-xl font-bold text-xl"
+        >
           + Nova Conta a Receber
         </button>
       </div>
@@ -99,12 +128,21 @@ export default function ContasReceber() {
                     PARCELA {conta.parcela_atual}/{conta.parcelas}
                     {' • '}
                     VENCIMENTO {new Date(conta.data_vencimento).toLocaleDateString('pt-BR')}
+                    {estaVencida(conta.data_vencimento) && <span className="text-red-400 ml-4 font-bold">VENCIDA</span>}
                   </p>
                 </div>
                 <div className="text-right">
                   <p className="text-4xl font-bold text-green-400">R$ {Number(conta.valor_parcela).toFixed(2)}</p>
-                  <button className="mt-4 bg-green-600 hover:bg-green-700 px-8 py-4 rounded-xl font-bold text-xl">
-                    Receber
+                  <button 
+                    onClick={() => setModalPagamento(conta)}
+                    disabled={conta.recebido}
+                    className={`mt-4 px-8 py-4 rounded-xl font-bold text-xl ${
+                      conta.recebido 
+                        ? 'bg-gray-600 cursor-not-allowed' 
+                        : 'bg-green-600 hover:bg-green-700'
+                    }`}
+                  >
+                    {conta.recebido ? 'Recebida' : 'Receber'}
                   </button>
                 </div>
               </div>
@@ -112,6 +150,55 @@ export default function ContasReceber() {
           )}
         </div>
       </div>
+
+      {/* Modal de Recebimento */}
+      {modalPagamento && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setModalPagamento(null)}>
+          <div className="bg-gray-900 p-8 rounded-3xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-3xl font-bold text-green-400 mb-6 text-center">Receber Conta</h2>
+            
+            <p className="text-xl mb-4">
+              <strong>Cliente:</strong> {modalPagamento.cliente?.nome}
+            </p>
+            <p className="text-xl mb-4">
+              <strong>Fatura:</strong> #{modalPagamento.fatura}
+            </p>
+            <p className="text-xl mb-6">
+              <strong>Valor:</strong> R$ {Number(modalPagamento.valor_parcela).toFixed(2)}
+            </p>
+
+            {estaVencida(modalPagamento.data_vencimento) && (
+              <div className="mb-6">
+                <label className="block text-xl mb-2">Juros (opcional)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={valorJuros}
+                  onChange={(e) => setValorJuros(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
+                />
+                <p className="text-red-400 text-sm mt-2">Conta vencida em {new Date(modalPagamento.data_vencimento).toLocaleDateString('pt-BR')}</p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-6">
+              <button
+                onClick={() => setModalPagamento(null)}
+                className="px-8 py-4 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold text-xl"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleReceber}
+                className="px-8 py-4 bg-green-600 hover:bg-green-700 rounded-xl font-bold text-xl"
+              >
+                Confirmar Recebimento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
