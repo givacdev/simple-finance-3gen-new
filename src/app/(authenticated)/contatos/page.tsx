@@ -46,7 +46,7 @@ export default function Contatos() {
   const [codigoAlterado, setCodigoAlterado] = useState(false);
   const router = useRouter();
 
-  // Form states
+  // Form states - dados gerais
   const [nome, setNome] = useState('');
   const [codigo, setCodigo] = useState('');
   const [cep, setCep] = useState('');
@@ -60,6 +60,8 @@ export default function Contatos() {
   const [telefoneCelular, setTelefoneCelular] = useState('');
   const [emailContato, setEmailContato] = useState('');
   const [cpfCnpj, setCpfCnpj] = useState('');
+
+  // Form states - recorrência
   const [recorrente, setRecorrente] = useState(false);
   const [valorMensal, setValorMensal] = useState('');
   const [diaVencimento, setDiaVencimento] = useState('1');
@@ -245,13 +247,21 @@ export default function Contatos() {
 
       if (error) throw error;
 
-      let dataVencimento = new Date();
-      const dia = Number(diaVencimento);
-      dataVencimento.setDate(dia);
+      // Calcula o primeiro vencimento correto
+      const hoje = new Date();
+      const anoAtual = hoje.getFullYear();
+      const mesAtual = hoje.getMonth();
+      const diaAtual = hoje.getDate();
 
-      if (dataVencimento < new Date()) {
-        dataVencimento.setMonth(dataVencimento.getMonth() + 1);
+      let dataVencimento = new Date(anoAtual, mesAtual, Number(diaVencimento));
+
+      // Se o dia já passou este mês, vai pro próximo mês
+      if (diaAtual > Number(diaVencimento)) {
+        dataVencimento.setMonth(mesAtual + 1);
       }
+
+      // Garante o dia correto (caso o mês não tenha o dia, ajusta pro último dia)
+      dataVencimento.setDate(Number(diaVencimento));
 
       const maxParcelas = 12;
       let parcelasGeradas = 0;
@@ -269,6 +279,7 @@ export default function Contatos() {
 
         if (existente && existente.length > 0) {
           dataVencimento.setMonth(dataVencimento.getMonth() + 1);
+          dataVencimento.setDate(Number(diaVencimento));
           continue;
         }
 
@@ -286,10 +297,10 @@ export default function Contatos() {
 
         parcelasGeradas++;
         dataVencimento.setMonth(dataVencimento.getMonth() + 1);
+        dataVencimento.setDate(Number(diaVencimento));
       }
 
       alert(`Recorrência salva e ${parcelasGeradas} parcelas geradas com sucesso!`);
-      resetForm();
       loadContatos(user.id);
     } catch (error: any) {
       alert('Erro ao salvar recorrência: ' + error.message);
@@ -301,6 +312,7 @@ export default function Contatos() {
 
     const tabelaConta = tipoNovo === 'cliente' ? 'contas_receber' : 'contas_pagar';
     const keyId = tipoNovo === 'cliente' ? 'cliente_id' : 'fornecedor_id';
+    const tabelaContato = tipoNovo === 'cliente' ? 'clientes' : 'fornecedores';
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
 
@@ -315,7 +327,7 @@ export default function Contatos() {
       if (errorDelete) throw errorDelete;
 
       const { error: errorUpdate } = await supabase
-        .from(tipoNovo === 'cliente' ? 'clientes' : 'fornecedores')
+        .from(tabelaContato)
         .update({ recorrente: false })
         .eq('id', editando.id);
 
@@ -447,11 +459,19 @@ export default function Contatos() {
       </div>
 
       {modalAberto && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={resetForm}>
-          <div className="bg-gray-900 p-8 rounded-3xl max-w-4xl w-full max-h-screen overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-4xl font-bold mb-8 text-center">
-              {editando ? 'Editar' : 'Novo'} {tipoNovo === 'cliente' ? 'Cliente' : 'Fornecedor'}
-            </h2>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 p-8 rounded-3xl max-w-4xl w-full max-h-screen overflow-y-auto">
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-4xl font-bold">
+                {editando ? 'Editar' : 'Novo'} {tipoNovo === 'cliente' ? 'Cliente' : 'Fornecedor'}
+              </h2>
+              <button
+                onClick={resetForm}
+                className="text-4xl text-gray-400 hover:text-white"
+              >
+                ×
+              </button>
+            </div>
 
             {!editando && (
               <div className="mb-8">
@@ -502,7 +522,6 @@ export default function Contatos() {
               </div>
             </div>
 
-            {/* Endereço */}
             <div className="mb-8">
               <h3 className="text-2xl font-bold mb-4">Endereço</h3>
               <div className="grid md:grid-cols-3 gap-8">
@@ -569,7 +588,6 @@ export default function Contatos() {
               </div>
             </div>
 
-            {/* Contatos */}
             <div className="grid md:grid-cols-2 gap-8 mb-8">
               <div>
                 <label className="block text-xl mb-2">Telefone Fixo</label>
@@ -606,7 +624,6 @@ export default function Contatos() {
               </div>
             </div>
 
-            {/* Recorrência simplificada */}
             <div className="mt-12">
               <label className="flex items-center gap-4 text-xl cursor-pointer">
                 <input
@@ -642,7 +659,7 @@ export default function Contatos() {
                         className="w-full p-4 bg-gray-700 rounded-lg text-white"
                       />
                     </div>
-                    <div className="md:col-span-2">
+                    <div>
                       <label className="block text-xl mb-2">Parcelas totais (0 = ilimitado, máx 12)</label>
                       <input
                         type="number"
