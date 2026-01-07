@@ -75,22 +75,36 @@ export default function NovaContaReceber() {
       return;
     }
 
-    const valorParcela = Number(valorTotal) / Number(parcelas);
+    const total = Number(valorTotal);
+    const numParcelas = Number(parcelas || 1);
+    const valorBase = total / numParcelas;
+    const valorInteiro = Math.floor(valorBase * 100) / 100;
+    const centavosExtras = total - (valorInteiro * numParcelas);
 
     try {
-      for (let i = 1; i <= Number(parcelas); i++) {
-        let vencimento = new Date(dataVencimento);
+      for (let i = 1; i <= numParcelas; i++) {
+        let valorParcela = valorInteiro;
+        if (i <= Math.ceil(centavosExtras * 100)) {
+          valorParcela += 0.01;
+        }
+
+        // Correção do timezone: criar data sem conversão UTC
+        const [ano, mes, dia] = dataVencimento.split('-');
+        let vencimento = new Date(Date.UTC(Number(ano), Number(mes) - 1, Number(dia)));
+        vencimento.setUTCHours(12); // força meio-dia pra evitar rollover
         vencimento.setMonth(vencimento.getMonth() + (i - 1));
+
+        const dataVencStr = vencimento.toISOString().split('T')[0];
 
         await supabase.from('contas_receber').insert({
           user_id: user.id,
           cliente_id: clienteId,
-          fatura: `${fatura}-${i}/${parcelas}`,
-          valor_total: Number(valorTotal),
-          valor_parcela: valorParcela,
-          parcelas: Number(parcelas),
+          fatura: `${fatura.toUpperCase()}-${i}/${numParcelas}`,
+          valor_total: total,
+          valor_parcela: Number(valorParcela.toFixed(2)),
+          parcelas: numParcelas,
           parcela_atual: i,
-          data_vencimento: vencimento.toISOString().split('T')[0],
+          data_vencimento: dataVencStr,
           recebido: false,
           observacoes: observacoes || null,
         });
