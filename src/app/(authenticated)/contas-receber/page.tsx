@@ -11,9 +11,13 @@ const supabase = createClient(
 
 interface Conta {
   id: string;
+  cliente_id?: string;
   cliente?: { nome: string } | null;
   fatura: string;
+  valor_total: number;
   valor_parcela: number;
+  parcela_atual: number;
+  parcelas: number;
   data_vencimento: string;
   recebido: boolean;
   observacoes?: string;
@@ -23,6 +27,8 @@ export default function ContasReceber() {
   const [user, setUser] = useState<any>(null);
   const [contas, setContas] = useState<Conta[]>([]);
   const [busca, setBusca] = useState('');
+  const [modalRecebimento, setModalRecebimento] = useState<Conta | null>(null);
+  const [valorJuros, setValorJuros] = useState('0');
   const router = useRouter();
 
   useEffect(() => {
@@ -41,7 +47,7 @@ export default function ContasReceber() {
   const loadContas = async (userId: string) => {
     const { data } = await supabase
       .from('contas_receber')
-      .select('id, fatura, valor_parcela, data_vencimento, recebido, observacoes, cliente:clientes(nome)')
+      .select('* , cliente:clientes(nome)')
       .eq('user_id', userId)
       .eq('recebido', false)
       .order('data_vencimento', { ascending: true });
@@ -62,6 +68,40 @@ export default function ContasReceber() {
       conta.observacoes?.toLowerCase().includes(termo)
     );
   });
+
+  const handleReceber = async () => {
+    if (!modalRecebimento) return;
+
+    const hoje = new Date().toISOString().split('T')[0];
+    const juros = Number(valorJuros || 0);
+    const valorFinal = Number(modalRecebimento.valor_parcela) + juros;
+
+    try {
+      await supabase
+        .from('contas_receber')
+        .update({
+          recebido: true,
+          data_recebimento: hoje,
+          juros: juros,
+        })
+        .eq('id', modalRecebimento.id);
+
+      await supabase.from('movimentos_caixa').insert({
+        user_id: user.id,
+        descricao: `Recebimento: ${modalRecebimento.fatura} - ${modalRecebimento.cliente?.nome || ''}`,
+        valor: valorFinal,
+        tipo: 'entrada',
+        data: hoje,
+      });
+
+      alert('Conta recebida com sucesso!');
+      setModalRecebimento(null);
+      setValorJuros('0');
+      loadContas(user!.id);
+    } catch (error: any) {
+      alert('Erro ao receber conta: ' + error.message);
+    }
+  };
 
   const estaVencida = (dataVencimento: string) => {
     const hoje = new Date();
@@ -106,13 +146,18 @@ export default function ContasReceber() {
                   <p className="text-gray-400 mt-2">Fatura #{conta.fatura}</p>
                   {conta.observacoes && <p className="text-gray-500">Obs: {conta.observacoes}</p>}
                   <p className="mt-2">
+                    PARCELA {conta.parcela_atual}/{conta.parcelas}
+                    {' • '}
                     VENCIMENTO {new Date(conta.data_vencimento).toLocaleDateString('pt-BR')}
                     {estaVencida(conta.data_vencimento) && <span className="text-red-400 ml-4 font-bold">VENCIDA</span>}
                   </p>
                 </div>
                 <div className="text-right">
                   <p className="text-4xl font-bold text-green-400">R$ {Number(conta.valor_parcela).toFixed(2)}</p>
-                  <button className="mt-4 bg-green-600 hover:bg-green-700 px-8 py-4 rounded-xl font-bold text-xl">
+                  <button 
+                    onClick={() => setModalRecebimento(conta)}
+                    className="mt-4 bg-green-600 hover:bg-green-700 px-8 py-4 rounded-xl font-bold text-xl"
+                  >
                     Receber
                   </button>
                 </div>
@@ -121,6 +166,54 @@ export default function ContasReceber() {
           )}
         </div>
       </div>
+
+      {modalRecebimento && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setModalRecebimento(null)}>
+          <div className="bg-gray-900 p-8 rounded-3xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-3xl font-bold text-green-400 mb-6 text-center">Receber Conta</h2>
+            
+            <p className="text-xl mb-4">
+              <strong>Cliente:</strong> {modalRecebimento.cliente?.nome}
+            </p>
+            <p className="text-xl mb-4">
+              <strong>Fatura:</strong> #{modalRecebimento.fatura}
+            </p>
+            <p className="text-xl mb-6">
+              <strong>Valor:</strong> R$ {Number(modalRecebimento.valor_parcela).toFixed(2)}
+            </p>
+
+            {estaVencida(modalRecebimento.data_vencimento) && (
+              <div className="mb-6">
+                <label className="block text-xl mb-2">Juros (opcional)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={valorJuros}
+                  onChange={(e) => setValorJuros(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
+                />
+                <p className="text-red-400 text-sm mt-2">Conta vencida em {new Date(modalRecebimento.data_vencimento).toLocaleDateString('pt-BR')}</p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-6">
+              <button
+                onClick={() => setModalRecebimento(null)}
+                className="px-8 py-4 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold text-xl"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleReceber}
+                className="px-8 py-4 bg-green-600 hover:bg-green-700 rounded-xl font-bold text-xl"
+              >
+                Confirmar Recebimento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
