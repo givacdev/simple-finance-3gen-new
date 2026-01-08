@@ -18,11 +18,11 @@ interface Cliente {
 export default function NovaContaReceber() {
   const [user, setUser] = useState<any>(null);
   const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [filtroCliente, setFiltroCliente] = useState('');
-  const [clienteId, setClienteId] = useState('');
-  const [modalNovoCliente, setModalNovoCliente] = useState(false);
-  const [nomeNovoCliente, setNomeNovoCliente] = useState('');
-  const [codigoNovoCliente, setCodigoNovoCliente] = useState('');
+  const [filtro, setFiltro] = useState('');
+  const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null);
+  const [modalNovo, setModalNovo] = useState(false);
+  const [nomeNovo, setNomeNovo] = useState('');
+  const [codigoNovo, setCodigoNovo] = useState('');
   const [fatura, setFatura] = useState('');
   const [valorTotal, setValorTotal] = useState('');
   const [parcelas, setParcelas] = useState('1');
@@ -55,12 +55,12 @@ export default function NovaContaReceber() {
   };
 
   const clientesFiltrados = clientes.filter(c => 
-    c.nome.toLowerCase().includes(filtroCliente.toLowerCase()) ||
-    c.codigo.toLowerCase().includes(filtroCliente.toLowerCase())
+    c.nome.toLowerCase().includes(filtro.toLowerCase()) ||
+    c.codigo.toLowerCase().includes(filtro.toLowerCase())
   );
 
   const handleNovoCliente = async () => {
-    if (!nomeNovoCliente.trim() || !codigoNovoCliente.trim()) {
+    if (!nomeNovo.trim() || !codigoNovo.trim()) {
       alert('Nome e código são obrigatórios');
       return;
     }
@@ -70,8 +70,8 @@ export default function NovaContaReceber() {
         .from('clientes')
         .insert({
           user_id: user.id,
-          nome: nomeNovoCliente.toUpperCase().trim(),
-          codigo: codigoNovoCliente.toUpperCase().trim(),
+          nome: nomeNovo.toUpperCase().trim(),
+          codigo: codigoNovo.toUpperCase().trim(),
         })
         .select()
         .single();
@@ -80,17 +80,18 @@ export default function NovaContaReceber() {
 
       alert('Cliente cadastrado com sucesso!');
       await loadClientes(user.id);
-      setClienteId(data.id);
-      setModalNovoCliente(false);
-      setNomeNovoCliente('');
-      setCodigoNovoCliente('');
+      setClienteSelecionado(data);
+      setFiltro(data.nome + ' (' + data.codigo + ')');
+      setModalNovo(false);
+      setNomeNovo('');
+      setCodigoNovo('');
     } catch (error: any) {
       alert('Erro ao cadastrar cliente: ' + error.message);
     }
   };
 
   useEffect(() => {
-    if (valorTotal && parcelas && dataVencimento) {
+    if (valorTotal && parcelas && dataVencimento && clienteSelecionado) {
       const total = Number(valorTotal);
       const numParcelas = Number(parcelas);
       const valorBase = Math.floor((total / numParcelas) * 100) / 100;
@@ -104,8 +105,7 @@ export default function NovaContaReceber() {
         }
 
         const [ano, mes, dia] = dataVencimento.split('-');
-        let vencimento = new Date(Date.UTC(Number(ano), Number(mes) - 1, Number(dia)));
-        vencimento.setUTCHours(12);
+        let vencimento = new Date(`${ano}-${mes}-${dia}T12:00:00`);
         vencimento.setMonth(vencimento.getMonth() + (i - 1));
         const dataStr = vencimento.toISOString().split('T')[0];
 
@@ -116,10 +116,10 @@ export default function NovaContaReceber() {
     } else {
       setPreviewParcelas([]);
     }
-  }, [valorTotal, parcelas, dataVencimento]);
+  }, [valorTotal, parcelas, dataVencimento, clienteSelecionado]);
 
   const handleSalvar = async () => {
-    if (!clienteId) {
+    if (!clienteSelecionado) {
       alert('Selecione um cliente');
       return;
     }
@@ -130,7 +130,7 @@ export default function NovaContaReceber() {
     }
 
     if (!/[a-zA-Z]/.test(fatura)) {
-      alert('A fatura deve conter pelo menos uma letra (ex: REC001, BOLETO-A)');
+      alert('A fatura deve conter pelo menos uma letra');
       return;
     }
 
@@ -145,16 +145,16 @@ export default function NovaContaReceber() {
     }
 
     try {
-      for (const [index, preview] of previewParcelas.entries()) {
+      for (const [index, p] of previewParcelas.entries()) {
         await supabase.from('contas_receber').insert({
           user_id: user.id,
-          cliente_id: clienteId,
+          cliente_id: clienteSelecionado.id,
           fatura: `${fatura.toUpperCase()}-${index + 1}/${previewParcelas.length}`,
           valor_total: Number(valorTotal),
-          valor_parcela: preview.valor,
+          valor_parcela: p.valor,
           parcelas: previewParcelas.length,
           parcela_atual: index + 1,
-          data_vencimento: preview.vencimento,
+          data_vencimento: p.vencimento,
           recebido: false,
           observacoes: observacoes || null,
         });
@@ -177,33 +177,40 @@ export default function NovaContaReceber() {
         <div className="grid md:grid-cols-2 gap-8 mb-8">
           <div>
             <label className="block text-xl mb-2">Cliente *</label>
-            <div className="flex items-center gap-4 mb-2">
+            <div className="relative">
               <input
                 type="text"
-                value={filtroCliente}
-                onChange={(e) => setFiltroCliente(e.target.value)}
-                placeholder="Filtrar clientes..."
-                className="flex-1 p-4 bg-gray-800 rounded-lg text-white text-xl"
+                value={filtro}
+                onChange={(e) => setFiltro(e.target.value)}
+                placeholder="Digite para filtrar ou selecione..."
+                className="w-full p-4 pr-12 bg-gray-800 rounded-lg text-white text-xl"
               />
               <button
-                onClick={() => setModalNovoCliente(true)}
-                className="bg-green-600 hover:bg-green-700 px-4 py-4 rounded-xl font-bold text-xl"
+                onClick={() => setModalNovo(true)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-bold"
               >
                 +
               </button>
             </div>
-            <select
-              value={clienteId}
-              onChange={(e) => setClienteId(e.target.value)}
-              className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
-            >
-              <option value="">Selecione um cliente</option>
-              {clientesFiltrados.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nome} ({c.codigo})
-                </option>
-              ))}
-            </select>
+            {filtro && clientesFiltrados.length > 0 && (
+              <div className="mt-2 max-h-60 overflow-y-auto bg-gray-800 rounded-lg">
+                {clientesFiltrados.map((c) => (
+                  <div
+                    key={c.id}
+                    onClick={() => {
+                      setClienteSelecionado(c);
+                      setFiltro(`${c.nome} (${c.codigo})`);
+                    }}
+                    className="p-3 hover:bg-gray-700 cursor-pointer"
+                  >
+                    {c.nome} ({c.codigo})
+                  </div>
+                ))}
+              </div>
+            )}
+            {clienteSelecionado && filtro === '' && (
+              <p className="mt-2 text-green-400">Selecionado: {clienteSelecionado.nome} ({clienteSelecionado.codigo})</p>
+            )}
           </div>
 
           <div>
@@ -298,16 +305,16 @@ export default function NovaContaReceber() {
         </div>
       </div>
 
-      {modalNovoCliente && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setModalNovoCliente(false)}>
+      {modalNovo && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setModalNovo(false)}>
           <div className="bg-gray-900 p-8 rounded-3xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-3xl font-bold text-green-400 mb-6 text-center">Novo Cliente</h2>
             
             <div className="mb-4">
               <label className="block text-xl mb-2">Nome *</label>
               <input
-                value={nomeNovoCliente}
-                onChange={(e) => setNomeNovoCliente(e.target.value)}
+                value={nomeNovo}
+                onChange={(e) => setNomeNovo(e.target.value)}
                 className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
               />
             </div>
@@ -315,8 +322,8 @@ export default function NovaContaReceber() {
             <div className="mb-6">
               <label className="block text-xl mb-2">Código (4 caracteres) *</label>
               <input
-                value={codigoNovoCliente}
-                onChange={(e) => setCodigoNovoCliente(e.target.value.toUpperCase().slice(0, 4))}
+                value={codigoNovo}
+                onChange={(e) => setCodigoNovo(e.target.value.toUpperCase().slice(0, 4))}
                 maxLength={4}
                 className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
               />
@@ -324,7 +331,7 @@ export default function NovaContaReceber() {
 
             <div className="flex justify-end gap-6">
               <button
-                onClick={() => setModalNovoCliente(false)}
+                onClick={() => setModalNovo(false)}
                 className="px-8 py-4 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold text-xl"
               >
                 Cancelar

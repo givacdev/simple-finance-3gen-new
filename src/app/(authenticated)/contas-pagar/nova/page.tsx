@@ -104,10 +104,8 @@ export default function NovaContaPagar() {
           valor += 0.01;
         }
 
-        // Timezone corrigido: string direta + ajuste manual
         const [ano, mes, dia] = dataVencimento.split('-');
-        const baseDate = new Date(`${ano}-${mes}-${dia}T12:00:00`); // força meio-dia local
-        const vencimento = new Date(baseDate);
+        let vencimento = new Date(`${ano}-${mes}-${dia}T12:00:00`);
         vencimento.setMonth(vencimento.getMonth() + (i - 1));
         const dataStr = vencimento.toISOString().split('T')[0];
 
@@ -211,7 +209,7 @@ export default function NovaContaPagar() {
               </div>
             )}
             {fornecedorSelecionado && filtro === '' && (
-              <p className="mt-2 text-green-400">Selecionado: {fornecedorSelecionado.nome} ({fornecedorSelecionado.codigo})</p>
+              <p className="mt-2 text-red-400">Selecionado: {fornecedorSelecionado.nome} ({fornecedorSelecionado.codigo})</p>
             )}
           </div>
 
@@ -230,7 +228,40 @@ export default function NovaContaPagar() {
           </div>
         </div>
 
-        {/* resto igual ao anterior */}
+        <div className="grid md:grid-cols-3 gap-8 mb-8">
+          <div>
+            <label className="block text-xl mb-2">Valor Total (R$)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={valorTotal}
+              onChange={(e) => setValorTotal(e.target.value)}
+              className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xl mb-2">Parcelas</label>
+            <input
+              type="number"
+              min="1"
+              max="36"
+              value={parcelas}
+              onChange={(e) => setParcelas(e.target.value)}
+              className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xl mb-2">1º Vencimento</label>
+            <input
+              type="date"
+              value={dataVencimento}
+              onChange={(e) => setDataVencimento(e.target.value)}
+              className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
+            />
+          </div>
+        </div>
 
         {previewParcelas.length > 0 && (
           <div className="mb-8">
@@ -247,50 +278,74 @@ export default function NovaContaPagar() {
           </div>
         )}
 
-        {/* observações e botões igual */}
+        <div className="mb-12">
+          <label className="block text-xl mb-2">Observações</label>
+          <textarea
+            value={observacoes}
+            onChange={(e) => setObservacoes(e.target.value)}
+            rows={4}
+            className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
+            placeholder="Opcional"
+          />
+        </div>
 
-        {modalNovo && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setModalNovo(false)}>
-            <div className="bg-gray-900 p-8 rounded-3xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
-              <h2 className="text-3xl font-bold text-red-400 mb-6 text-center">Novo Fornecedor</h2>
-              
-              <div className="mb-4">
-                <label className="block text-xl mb-2">Nome *</label>
-                <input
-                  value={nomeNovo}
-                  onChange={(e) => setNomeNovo(e.target.value)}
-                  className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
-                />
-              </div>
+        <div className="flex justify-end gap-6">
+          <button
+            onClick={() => router.push('/contas-pagar')}
+            className="px-8 py-4 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold text-xl"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSalvar}
+            className="px-8 py-4 bg-red-600 hover:bg-red-700 rounded-xl font-bold text-xl"
+          >
+            Salvar Conta
+          </button>
+        </div>
+      </div>
 
-              <div className="mb-6">
-                <label className="block text-xl mb-2">Código (4 caracteres) *</label>
-                <input
-                  value={codigoNovo}
-                  onChange={(e) => setCodigoNovo(e.target.value.toUpperCase().slice(0, 4))}
-                  maxLength={4}
-                  className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
-                />
-              </div>
+      {modalNovo && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setModalNovo(false)}>
+          <div className="bg-gray-900 p-8 rounded-3xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-3xl font-bold text-red-400 mb-6 text-center">Novo Fornecedor</h2>
+            
+            <div className="mb-4">
+              <label className="block text-xl mb-2">Nome *</label>
+              <input
+                value={nomeNovo}
+                onChange={(e) => setNomeNovo(e.target.value)}
+                className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
+              />
+            </div>
 
-              <div className="flex justify-end gap-6">
-                <button
-                  onClick={() => setModalNovo(false)}
-                  className="px-8 py-4 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold text-xl"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleNovoFornecedor}
-                  className="px-8 py-4 bg-red-600 hover:bg-red-700 rounded-xl font-bold text-xl"
-                >
-                  Salvar Fornecedor
-                </button>
-              </div>
+            <div className="mb-6">
+              <label className="block text-xl mb-2">Código (4 caracteres) *</label>
+              <input
+                value={codigoNovo}
+                onChange={(e) => setCodigoNovo(e.target.value.toUpperCase().slice(0, 4))}
+                maxLength={4}
+                className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
+              />
+            </div>
+
+            <div className="flex justify-end gap-6">
+              <button
+                onClick={() => setModalNovo(false)}
+                className="px-8 py-4 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold text-xl"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleNovoFornecedor}
+                className="px-8 py-4 bg-red-600 hover:bg-red-700 rounded-xl font-bold text-xl"
+              >
+                Salvar Fornecedor
+              </button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
