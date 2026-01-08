@@ -11,7 +11,7 @@ const supabase = createClient(
 
 interface Conta {
   id: string;
-  fornecedor?: { nome: string };
+  fornecedor?: { nome: string } | null;
   fatura: string;
   valor_parcela: number;
   data_vencimento: string;
@@ -46,7 +46,12 @@ export default function ContasPagar() {
       .eq('pago', false)
       .order('data_vencimento', { ascending: true });
 
-    setContas(data || []);
+    const formattedData = (data || []).map((conta: any) => ({
+      ...conta,
+      fornecedor: Array.isArray(conta.fornecedor) ? conta.fornecedor[0] : conta.fornecedor,
+    }));
+
+    setContas(formattedData);
   };
 
   const contasFiltradas = contas.filter(conta => {

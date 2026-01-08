@@ -11,7 +11,7 @@ const supabase = createClient(
 
 interface Conta {
   id: string;
-  cliente?: { nome: string };
+  cliente?: { nome: string } | null;
   fatura: string;
   valor_parcela: number;
   data_vencimento: string;
@@ -46,7 +46,12 @@ export default function ContasReceber() {
       .eq('recebido', false)
       .order('data_vencimento', { ascending: true });
 
-    setContas(data || []);
+    const formattedData = (data || []).map((conta: any) => ({
+      ...conta,
+      cliente: Array.isArray(conta.cliente) ? conta.cliente[0] : conta.cliente,
+    }));
+
+    setContas(formattedData);
   };
 
   const contasFiltradas = contas.filter(conta => {
