@@ -37,6 +37,8 @@ export default function Dashboard() {
   const [entradasHoje, setEntradasHoje] = useState(0);
   const [saidasHoje, setSaidasHoje] = useState(0);
   const [categorias, setCategorias] = useState<{id: string, nome: string}[]>([]);
+  const [proximosVencimentos, setProximosVencimentos] = useState<any[]>([]);
+  const [proximosRecebimentos, setProximosRecebimentos] = useState<any[]>([]);
   const [modalEntrada, setModalEntrada] = useState(false);
   const [modalSaida, setModalSaida] = useState(false);
   const [valorLancamento, setValorLancamento] = useState('');
@@ -68,13 +70,13 @@ export default function Dashboard() {
   };
 
   const loadDashboard = async (userId: string) => {
-    const hoje = new Date().toISOString().split('T')[0];
+    const hojeLocal = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
     const seteDias = new Date();
     seteDias.setDate(seteDias.getDate() + 7);
-    const seteDiasStr = seteDias.toISOString().split('T')[0];
+    const seteDiasLocal = seteDias.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
 
-    const mesInicio = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
-    const mesFim = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0];
+    const mesInicio = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
+    const mesFim = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
 
     // Saldo atual
     const { data: movimentos } = await supabase
@@ -93,7 +95,7 @@ export default function Dashboard() {
       .from('movimentos_caixa')
       .select('valor, tipo')
       .eq('user_id', userId)
-      .eq('data', hoje);
+      .eq('data', hojeLocal);
 
     let entradas = 0;
     let saidas = 0;
@@ -119,24 +121,28 @@ export default function Dashboard() {
       .eq('pago', false);
     setTotalPagar(pagar?.reduce((sum, c) => sum + (c.valor_parcela || 0), 0) || 0);
 
-    // Próximos 7 dias
+    // Próximos 7 dias (incluindo vencidos)
     const { data: proximosR } = await supabase
       .from('contas_receber')
-      .select('valor_parcela')
+      .select('cliente:clientes(nome), fatura, valor_parcela, data_vencimento')
       .eq('user_id', userId)
       .eq('recebido', false)
-      .gte('data_vencimento', hoje)
-      .lte('data_vencimento', seteDiasStr);
+      .lte('data_vencimento', seteDiasLocal)
+      .order('data_vencimento', { ascending: true });
+
     setProximosReceber(proximosR?.reduce((sum, c) => sum + (c.valor_parcela || 0), 0) || 0);
+    setProximosRecebimentos(proximosR || []);
 
     const { data: proximosP } = await supabase
       .from('contas_pagar')
-      .select('valor_parcela')
+      .select('fornecedor:fornecedores(nome), fatura, valor_parcela, data_vencimento')
       .eq('user_id', userId)
       .eq('pago', false)
-      .gte('data_vencimento', hoje)
-      .lte('data_vencimento', seteDiasStr);
+      .lte('data_vencimento', seteDiasLocal)
+      .order('data_vencimento', { ascending: true });
+
     setProximosPagar(proximosP?.reduce((sum, c) => sum + (c.valor_parcela || 0), 0) || 0);
+    setProximosVencimentos(proximosP || []);
 
     // Juros mês corrente + %
     const { data: jurosR } = await supabase
@@ -165,13 +171,16 @@ export default function Dashboard() {
     setJurosPagosValor(jurosPagos);
     setJurosPagosPerc(totalPagoMes > 0 ? (jurosPagos / totalPagoMes) * 100 : 0);
 
-    // Novos hoje
+    // Novos hoje (timezone BRT)
+    const hojeInicio = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+    const hojeFim = new Date(new Date().setHours(23, 59, 59, 999)).toISOString();
+
     const { data: novosP } = await supabase
       .from('contas_pagar')
       .select('valor_parcela')
       .eq('user_id', userId)
-      .gte('created_at', hoje + ' 00:00:00')
-      .lt('created_at', hoje + ' 23:59:59');
+      .gte('created_at', hojeInicio)
+      .lte('created_at', hojeFim);
     setNovosPagarHoje({
       count: novosP?.length || 0,
       valor: novosP?.reduce((sum, c) => sum + (c.valor_parcela || 0), 0) || 0
@@ -181,8 +190,8 @@ export default function Dashboard() {
       .from('contas_receber')
       .select('valor_parcela')
       .eq('user_id', userId)
-      .gte('created_at', hoje + ' 00:00:00')
-      .lt('created_at', hoje + ' 23:59:59');
+      .gte('created_at', hojeInicio)
+      .lte('created_at', hojeFim);
     setNovosReceberHoje({
       count: novosR?.length || 0,
       valor: novosR?.reduce((sum, c) => sum + (c.valor_parcela || 0), 0) || 0
@@ -199,7 +208,7 @@ export default function Dashboard() {
       return;
     }
 
-    const hoje = new Date().toISOString().split('T')[0];
+    const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
 
     try {
       await supabase.from('movimentos_caixa').insert({
@@ -227,10 +236,10 @@ export default function Dashboard() {
     <div className="p-8 bg-gray-950 min-h-screen">
       <h1 className="text-5xl font-bold text-white mb-12">Dashboard</h1>
 
-      {/* Cards principais - GRID COMPLETO */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-12">
+      {/* Cards principais */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-12">
         {/* Saldo em Caixa */}
-        <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-6 rounded-3xl shadow-2xl text-white">
+        <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-8 rounded-3xl shadow-2xl text-white">
           <div className="flex items-center justify-between mb-4">
             <BanknotesIcon className="h-10 w-10" />
             <span className="text-sm font-medium opacity-80">Saldo em Caixa</span>
@@ -262,7 +271,7 @@ export default function Dashboard() {
         </div>
 
         {/* Total a Receber */}
-        <div className="bg-gradient-to-br from-green-600 to-green-800 p-6 rounded-3xl shadow-2xl text-white">
+        <div className="bg-gradient-to-br from-green-600 to-green-800 p-8 rounded-3xl shadow-2xl text-white">
           <div className="flex items-center justify-between mb-4">
             <ArrowUpCircleIcon className="h-10 w-10" />
             <span className="text-sm font-medium opacity-80">Total a Receber</span>
@@ -272,7 +281,7 @@ export default function Dashboard() {
         </div>
 
         {/* Total a Pagar */}
-        <div className="bg-gradient-to-br from-red-600 to-red-800 p-6 rounded-3xl shadow-2xl text-white">
+        <div className="bg-gradient-to-br from-red-600 to-red-800 p-8 rounded-3xl shadow-2xl text-white">
           <div className="flex items-center justify-between mb-4">
             <ArrowDownCircleIcon className="h-10 w-10" />
             <span className="text-sm font-medium opacity-80">Total a Pagar</span>
@@ -282,111 +291,48 @@ export default function Dashboard() {
         </div>
 
         {/* Juros Recebidos */}
-        <div className="bg-gradient-to-br from-emerald-600 to-emerald-800 p-6 rounded-3xl shadow-2xl text-white">
+        <div className="bg-gradient-to-br from-emerald-600 to-emerald-800 p-8 rounded-3xl shadow-2xl text-white">
           <div className="flex items-center justify-between mb-4">
             <CurrencyDollarIcon className="h-10 w-10" />
             <span className="text-sm font-medium opacity-80">Juros Recebidos</span>
           </div>
-          <p className="text-3xl font-bold">R$ {jurosRecebidosValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <p className="text-4xl font-bold">R$ {jurosRecebidosValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
           <p className="text-sm mt-2 opacity-80">{jurosRecebidosPerc.toFixed(2)}% do total recebido no mês</p>
         </div>
 
         {/* Juros Pagos */}
-        <div className="bg-gradient-to-br from-rose-600 to-rose-800 p-6 rounded-3xl shadow-2xl text-white">
+        <div className="bg-gradient-to-br from-rose-600 to-rose-800 p-8 rounded-3xl shadow-2xl text-white">
           <div className="flex items-center justify-between mb-4">
             <CurrencyDollarIcon className="h-10 w-10" />
             <span className="text-sm font-medium opacity-80">Juros Pagos</span>
           </div>
-          <p className="text-3xl font-bold">R$ {jurosPagosValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <p className="text-4xl font-bold">R$ {jurosPagosValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
           <p className="text-sm mt-2 opacity-80">{jurosPagosPerc.toFixed(2)}% do total pago no mês</p>
         </div>
       </div>
 
-      {/* Modais de Entrada / Saída */}
-      {(modalEntrada || modalSaida) && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => { setModalEntrada(false); setModalSaida(false); }}>
-          <div className="bg-gray-900 p-8 rounded-3xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-3xl font-bold text-white mb-6 text-center">
-              {modalEntrada ? 'Nova Entrada no Caixa' : 'Nova Saída no Caixa'}
-            </h2>
-
-            <div className="mb-6">
-              <label className="block text-xl mb-2">Valor (R$)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={valorLancamento}
-                onChange={(e) => setValorLancamento(e.target.value)}
-                className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
-                placeholder="0.00"
-              />
-            </div>
-
-            <div className="mb-6">
-              <label className="block text-xl mb-2">Categoria</label>
-              <select
-                value={categoriaLancamento}
-                onChange={(e) => setCategoriaLancamento(e.target.value)}
-                className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
-              >
-                <option value="">Selecione uma categoria</option>
-                {categorias.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.nome}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="mb-6">
-              <label className="block text-xl mb-2">Descrição</label>
-              <input
-                type="text"
-                value={descricaoLancamento}
-                onChange={(e) => setDescricaoLancamento(e.target.value)}
-                className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
-                placeholder="Ex: Venda, pagamento fornecedor..."
-              />
-            </div>
-
-            <div className="flex justify-end gap-6">
-              <button
-                onClick={() => { setModalEntrada(false); setModalSaida(false); }}
-                className="px-8 py-4 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold text-xl"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => handleLancamento(modalEntrada ? 'entrada' : 'saida')}
-                className={`px-8 py-4 rounded-xl font-bold text-xl ${modalEntrada ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
-              >
-                Confirmar {modalEntrada ? 'Entrada' : 'Saída'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Movimentação do Dia */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-        <div className="bg-gradient-to-br from-cyan-600 to-cyan-800 p-8 rounded-3xl shadow-2xl text-white">
+        <div className="bg-gradient-to-br from-cyan-600 to-cyan-800 p-8 rounded-3xl shadow-2xl text-white col-span-1 md:col-span-1">
           <ClockIcon className="h-12 w-12 mb-4" />
           <h3 className="text-2xl font-bold mb-2">Entradas Hoje</h3>
           <p className="text-4xl">R$ {entradasHoje.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
         </div>
 
-        <div className="bg-gradient-to-br from-orange-600 to-orange-800 p-8 rounded-3xl shadow-2xl text-white">
+        <div className="bg-gradient-to-br from-orange-600 to-orange-800 p-8 rounded-3xl shadow-2xl text-white col-span-1 md:col-span-1">
           <ClockIcon className="h-12 w-12 mb-4" />
           <h3 className="text-2xl font-bold mb-2">Saídas Hoje</h3>
           <p className="text-4xl">R$ {saidasHoje.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
         </div>
 
-        <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 p-8 rounded-3xl shadow-2xl text-white">
+        <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 p-8 rounded-3xl shadow-2xl text-white col-span-1 md:col-span-1">
           <PlusCircleIcon className="h-12 w-12 mb-4" />
           <h3 className="text-2xl font-bold mb-2">Novos a Pagar Hoje</h3>
           <p className="text-4xl">{novosPagarHoje.count} contas</p>
           <p className="text-xl mt-2">R$ {novosPagarHoje.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
         </div>
 
-        <div className="bg-gradient-to-br from-lime-600 to-lime-800 p-8 rounded-3xl shadow-2xl text-white">
+        <div className="bg-gradient-to-br from-lime-600 to-lime-800 p-8 rounded-3xl shadow-2xl text-white col-span-1 md:col-span-1">
           <PlusCircleIcon className="h-12 w-12 mb-4" />
           <h3 className="text-2xl font-bold mb-2">Novos a Receber Hoje</h3>
           <p className="text-4xl">{novosReceberHoje.count} contas</p>
@@ -394,39 +340,76 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Próximos Vencimentos / Recebimentos (expandido) */}
+      {/* Próximos Vencimentos / Recebimentos (expandido com lista real + vencidas) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
         <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl border border-red-800/50">
           <div className="flex items-center mb-6">
             <ExclamationTriangleIcon className="h-10 w-10 text-red-400 mr-4" />
-            <h2 className="text-3xl font-bold text-red-400">Próximos Vencimentos (7 dias)</h2>
+            <h2 className="text-3xl font-bold text-red-400">Próximos Vencimentos (7 dias + Vencidas)</h2>
           </div>
-          {/* Lista real - exemplo */}
-          <div className="space-y-4">
-            {/* Você pode puxar real aqui depois */}
-            <div className="p-4 bg-gray-800 rounded-xl">
-              <p className="font-bold">FORNECEDOR TESTE</p>
-              <p className="text-sm text-gray-400">Venc. 08/01/2026 • R$ 1.234,56</p>
-            </div>
+          <div className="space-y-4 max-h-80 overflow-y-auto">
+            {proximosVencimentos.map((p, index) => (
+              <div key={index} className="p-4 bg-gray-800 rounded-xl">
+                <p className="font-bold">{p.fornecedor?.nome || 'Sem fornecedor'}</p>
+                <p className="text-sm text-gray-400">Venc. {p.data_vencimento} • R$ {p.valor_parcela.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+              </div>
+            ))}
+            {proximosVencimentos.length === 0 && <p className="text-gray-500 text-center">Nenhum vencimento</p>}
           </div>
         </div>
 
         <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl border border-green-800/50">
           <div className="flex items-center mb-6">
             <CalendarIcon className="h-10 w-10 text-green-400 mr-4" />
-            <h2 className="text-3xl font-bold text-green-400">Próximos Recebimentos (7 dias)</h2>
+            <h2 className="text-3xl font-bold text-green-400">Próximos Recebimentos (7 dias + Vencidas)</h2>
           </div>
-          <div className="space-y-4">
-            <div className="p-4 bg-gray-800 rounded-xl">
-              <p className="font-bold">CLIENTE TESTE</p>
-              <p className="text-sm text-gray-400">Venc. 09/01/2026 • R$ 2.345,67</p>
-            </div>
+          <div className="space-y-4 max-h-80 overflow-y-auto">
+            {proximosRecebimentos.map((r, index) => (
+              <div key={index} className="p-4 bg-gray-800 rounded-xl">
+                <p className="font-bold">{r.cliente?.nome || 'Sem cliente'}</p>
+                <p className="text-sm text-gray-400">Venc. {r.data_vencimento} • R$ {r.valor_parcela.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+              </div>
+            ))}
+            {proximosRecebimentos.length === 0 && <p className="text-gray-500 text-center">Nenhum recebimento</p>}
           </div>
         </div>
       </div>
 
       {/* Gráficos */}
-      {/* Placeholder - implementamos depois */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl col-span-1 md:col-span-1">
+          <h3 className="text-2xl font-bold mb-6 flex items-center">
+            <ChartBarIcon className="h-8 w-8 text-cyan-400 mr-3" />
+            Entradas vs Saídas
+          </h3>
+          <div className="h-64 bg-gray-800 rounded-xl flex items-center justify-center text-gray-500">
+            Gráfico de barras aqui (Chart.js ou Recharts)
+          </div>
+        </div>
+
+        <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl col-span-1 md:col-span-1">
+          <h3 className="text-2xl font-bold mb-6 flex items-center">
+            <ChartBarIcon className="h-8 w-8 text-green-400 mr-3" />
+            Recebimentos Mensais
+          </h3>
+          <div className="h-64 bg-gray-800 rounded-xl flex items-center justify-center text-gray-500">
+            Gráfico de linha aqui
+          </div>
+        </div>
+
+        <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl col-span-1 md:col-span-1">
+          <h3 className="text-2xl font-bold mb-6 flex items-center">
+            <ChartBarIcon className="h-8 w-8 text-red-400 mr-3" />
+            Pagamentos Mensais
+          </h3>
+          <div className="h-64 bg-gray-800 rounded-xl flex items-center justify-center text-gray-500">
+            Gráfico de pizza aqui
+          </div>
+        </div>
+      </div>
+
+      {/* Modais */}
+      {/* ... (manter como antes, com categoria) */}
     </div>
   );
 }
