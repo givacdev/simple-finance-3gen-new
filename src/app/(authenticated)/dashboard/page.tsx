@@ -1,9 +1,20 @@
 'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { 
+  ArrowDownCircleIcon, 
+  ArrowUpCircleIcon, 
+  BanknotesIcon, 
+  CalendarIcon, 
+  ChartBarIcon, 
+  ClockIcon, 
+  CurrencyDollarIcon, 
+  ExclamationTriangleIcon, 
+  EyeIcon, 
+  PlusCircleIcon 
+} from '@heroicons/react/24/solid';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,14 +23,13 @@ const supabase = createClient(
 
 export default function Dashboard() {
   const [user, setUser] = useState<any>(null);
-  const [entradasPrevistas, setEntradasPrevistas] = useState(0);
-  const [saidasPrevistas, setSaidasPrevistas] = useState(0);
-  const [saldoProjetado, setSaldoProjetado] = useState(0);
-  const [saldoCaixa, setSaldoCaixa] = useState(0);
-  const [jurosPagos30, setJurosPagos30] = useState(0);
-  const [jurosRecebidos30, setJurosRecebidos30] = useState(0);
-  const [proximasPagar, setProximasPagar] = useState<any[]>([]);
-  const [proximasReceber, setProximasReceber] = useState<any[]>([]);
+  const [saldo, setSaldo] = useState(0);
+  const [totalReceber, setTotalReceber] = useState(0);
+  const [totalPagar, setTotalPagar] = useState(0);
+  const [proximosReceber, setProximosReceber] = useState(0);
+  const [proximosPagar, setProximosPagar] = useState(0);
+  const [jurosRecebidos, setJurosRecebidos] = useState(0);
+  const [jurosPagos, setJurosPagos] = useState(0);
   const router = useRouter();
 
   useEffect(() => {
@@ -36,184 +46,239 @@ export default function Dashboard() {
   }, [router]);
 
   const loadDashboard = async (userId: string) => {
-    // Entradas previstas (contas a receber pendentes)
-    const { data: receber } = await supabase
-      .from('contas_receber')
-      .select('valor_parcela')
-      .eq('user_id', userId)
-      .eq('recebido', false);
+    const hoje = new Date();
+    const seteDias = new Date();
+    seteDias.setDate(seteDias.getDate() + 7);
 
-    const totalReceber = (receber || []).reduce((sum: number, c: any) => sum + Number(c.valor_parcela), 0);
-    setEntradasPrevistas(totalReceber);
-
-    // Saídas previstas (contas a pagar pendentes)
-    const { data: pagar } = await supabase
-      .from('contas_pagar')
-      .select('valor_parcela')
-      .eq('user_id', userId)
-      .eq('pago', false);
-
-    const totalPagar = (pagar || []).reduce((sum: number, c: any) => sum + Number(c.valor_parcela), 0);
-    setSaidasPrevistas(totalPagar);
-
-    setSaldoProjetado(totalReceber - totalPagar);
-
-    // Saldo atual do caixa (movimentos reais)
+    // Saldo atual (entradas - saídas)
     const { data: movimentos } = await supabase
       .from('movimentos_caixa')
       .select('valor, tipo')
       .eq('user_id', userId);
 
-    let saldo = 0;
-    (movimentos || []).forEach((m: any) => {
-      if (m.tipo === 'entrada') saldo += Number(m.valor);
-      else saldo -= Number(m.valor);
+    let saldoAtual = 0;
+    movimentos?.forEach(m => {
+      saldoAtual += m.tipo === 'entrada' ? m.valor : -m.valor;
     });
-    setSaldoCaixa(saldo);
+    setSaldo(saldoAtual);
 
-    // Juros pagos últimos 30 dias
-    const trintaDiasAtras = new Date();
-    trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
-    const data30 = trintaDiasAtras.toISOString().split('T')[0];
-
-    const { data: jurosPag } = await supabase
-      .from('contas_pagar')
-      .select('juros_pagos')
-      .eq('user_id', userId)
-      .eq('pago', true)
-      .gte('data_baixa', data30);
-
-    const totalJurosPagos = (jurosPag || []).reduce((sum: number, c: any) => sum + Number(c.juros_pagos || 0), 0);
-    setJurosPagos30(totalJurosPagos);
-
-    // Juros recebidos últimos 30 dias
-    const { data: jurosRec } = await supabase
+    // Total a receber/pagar
+    const { data: receber } = await supabase
       .from('contas_receber')
-      .select('juros_recebidos')
+      .select('valor_parcela')
       .eq('user_id', userId)
-      .eq('recebido', true)
-      .gte('data_baixa', data30);
+      .eq('recebido', false);
+    setTotalReceber(receber?.reduce((sum, c) => sum + c.valor_parcela, 0) || 0);
 
-    const totalJurosRecebidos = (jurosRec || []).reduce((sum: number, c: any) => sum + Number(c.juros_recebidos || 0), 0);
-    setJurosRecebidos30(totalJurosRecebidos);
-
-    // Próximas a pagar
-    const { data: proxPagar } = await supabase
+    const { data: pagar } = await supabase
       .from('contas_pagar')
-      .select('*, fornecedores(nome)')
+      .select('valor_parcela')
       .eq('user_id', userId)
-      .eq('pago', false)
-      .order('data_vencimento', { ascending: true })
-      .limit(5);
-    setProximasPagar(proxPagar || []);
+      .eq('pago', false);
+    setTotalPagar(pagar?.reduce((sum, c) => sum + c.valor_parcela, 0) || 0);
 
-    // Próximas a receber
-    const { data: proxReceber } = await supabase
+    // Próximos 7 dias
+    const { data: proximosR } = await supabase
       .from('contas_receber')
-      .select('*, clientes(nome)')
+      .select('valor_parcela')
       .eq('user_id', userId)
       .eq('recebido', false)
-      .order('data_vencimento', { ascending: true })
-      .limit(5);
-    setProximasReceber(proxReceber || []);
-  };
+      .gte('data_vencimento', hoje.toISOString().split('T')[0])
+      .lte('data_vencimento', seteDias.toISOString().split('T')[0]);
+    setProximosReceber(proximosR?.reduce((sum, c) => sum + c.valor_parcela, 0) || 0);
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR');
-  };
+    const { data: proximosP } = await supabase
+      .from('contas_pagar')
+      .select('valor_parcela')
+      .eq('user_id', userId)
+      .eq('pago', false)
+      .gte('data_vencimento', hoje.toISOString().split('T')[0])
+      .lte('data_vencimento', seteDias.toISOString().split('T')[0]);
+    setProximosPagar(proximosP?.reduce((sum, c) => sum + c.valor_parcela, 0) || 0);
 
-  if (!user) return null;
+    // Juros mês corrente
+    const mesInicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().split('T')[0];
+    const mesFim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).toISOString().split('T')[0];
+
+    const { data: jurosR } = await supabase
+      .from('contas_receber')
+      .select('juros')
+      .eq('user_id', userId)
+      .eq('recebido', true)
+      .gte('data_recebimento', mesInicio)
+      .lte('data_recebimento', mesFim);
+    setJurosRecebidos(jurosR?.reduce((sum, c) => sum + (c.juros || 0), 0) || 0);
+
+    const { data: jurosP } = await supabase
+      .from('contas_pagar')
+      .select('juros')
+      .eq('user_id', userId)
+      .eq('pago', true)
+      .gte('data_pagamento', mesInicio)
+      .lte('data_pagamento', mesFim);
+    setJurosPagos(jurosP?.reduce((sum, c) => sum + (c.juros || 0), 0) || 0);
+  };
 
   return (
-    <div className="p-12">
-      <h1 className="text-5xl font-bold mb-12 text-center">Dashboard Financeiro</h1>
+    <div className="p-8 bg-gray-950 min-h-screen">
+      <h1 className="text-5xl font-bold text-white mb-12">Dashboard</h1>
 
       {/* Cards principais */}
-      <div className="grid md:grid-cols-4 gap-8 mb-16">
-        <div className="bg-green-900 p-10 rounded-3xl text-center shadow-2xl">
-          <p className="text-2xl text-green-300 mb-4">Entradas Previstas</p>
-          <p className="text-6xl font-bold">R$ {entradasPrevistas.toFixed(2)}</p>
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-12">
+        {/* Saldo em Caixa */}
+        <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-8 rounded-3xl shadow-2xl text-white">
+          <div className="flex items-center justify-between mb-4">
+            <BanknotesIcon className="h-10 w-10" />
+            <span className="text-sm font-medium opacity-80">Saldo em Caixa</span>
+          </div>
+          <p className="text-4xl font-bold mb-6">R$ {saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <div className="grid grid-cols-3 gap-4">
+            <button className="flex flex-col items-center p-3 bg-white/20 rounded-xl hover:bg-white/30 transition">
+              <PlusCircleIcon className="h-8 w-8 mb-1" />
+              <span className="text-xs">Entrada</span>
+            </button>
+            <button className="flex flex-col items-center p-3 bg-white/20 rounded-xl hover:bg-white/30 transition">
+              <ArrowDownCircleIcon className="h-8 w-8 mb-1" />
+              <span className="text-xs">Saída</span>
+            </button>
+            <button className="flex flex-col items-center p-3 bg-white/20 rounded-xl hover:bg-white/30 transition">
+              <EyeIcon className="h-8 w-8 mb-1" />
+              <span className="text-xs">Movimentação</span>
+            </button>
+          </div>
         </div>
-        <div className="bg-red-900 p-10 rounded-3xl text-center shadow-2xl">
-          <p className="text-2xl text-red-300 mb-4">Saídas Previstas</p>
-          <p className="text-6xl font-bold">R$ {saidasPrevistas.toFixed(2)}</p>
+
+        {/* Total a Receber */}
+        <div className="bg-gradient-to-br from-green-600 to-green-800 p-8 rounded-3xl shadow-2xl text-white">
+          <div className="flex items-center justify-between mb-4">
+            <ArrowUpCircleIcon className="h-10 w-10" />
+            <span className="text-sm font-medium opacity-80">Total a Receber</span>
+          </div>
+          <p className="text-4xl font-bold">R$ {totalReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <p className="text-sm mt-2 opacity-80">Em 7 dias: R$ {proximosReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
         </div>
-        <div className={`p-10 rounded-3xl text-center shadow-2xl ${saldoProjetado >= 0 ? 'bg-blue-900' : 'bg-orange-900'}`}>
-          <p className="text-2xl text-gray-300 mb-4">Saldo Projetado</p>
-          <p className={`text-6xl font-bold ${saldoProjetado >= 0 ? 'text-blue-300' : 'text-orange-300'}`}>
-            R$ {saldoProjetado.toFixed(2)}
-          </p>
+
+        {/* Total a Pagar */}
+        <div className="bg-gradient-to-br from-red-600 to-red-800 p-8 rounded-3xl shadow-2xl text-white">
+          <div className="flex items-center justify-between mb-4">
+            <ArrowDownCircleIcon className="h-10 w-10" />
+            <span className="text-sm font-medium opacity-80">Total a Pagar</span>
+          </div>
+          <p className="text-4xl font-bold">R$ {totalPagar.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          <p className="text-sm mt-2 opacity-80">Em 7 dias: R$ {proximosPagar.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
         </div>
-        <div className={`p-10 rounded-3xl text-center shadow-2xl ${saldoCaixa >= 0 ? 'bg-purple-900' : 'bg-pink-900'}`}>
-          <p className="text-2xl text-gray-300 mb-4">Saldo Atual do Caixa</p>
-          <p className={`text-6xl font-bold ${saldoCaixa >= 0 ? 'text-purple-300' : 'text-pink-300'}`}>
-            R$ {saldoCaixa.toFixed(2)}
-          </p>
+
+        {/* % Juros Recebidos */}
+        <div className="bg-gradient-to-br from-emerald-600 to-emerald-800 p-8 rounded-3xl shadow-2xl text-white">
+          <div className="flex items-center justify-between mb-4">
+            <CurrencyDollarIcon className="h-10 w-10" />
+            <span className="text-sm font-medium opacity-80">% Juros Recebidos</span>
+          </div>
+          <p className="text-4xl font-bold">{jurosRecebidos.toFixed(2)}%</p>
+          <p className="text-sm mt-2 opacity-80">Mês corrente</p>
+        </div>
+
+        {/* % Juros Pagos */}
+        <div className="bg-gradient-to-br from-rose-600 to-rose-800 p-8 rounded-3xl shadow-2xl text-white">
+          <div className="flex items-center justify-between mb-4">
+            <CurrencyDollarIcon className="h-10 w-10" />
+            <span className="text-sm font-medium opacity-80">% Juros Pagos</span>
+          </div>
+          <p className="text-4xl font-bold">{jurosPagos.toFixed(2)}%</p>
+          <p className="text-sm mt-2 opacity-80">Mês corrente</p>
         </div>
       </div>
 
-      {/* Cards de juros */}
-      <div className="grid md:grid-cols-2 gap-8 mb-16">
-        <div className="bg-red-900 p-10 rounded-3xl text-center shadow-2xl">
-          <p className="text-2xl text-red-300 mb-4">Juros Pagos (30 dias)</p>
-          <p className="text-6xl font-bold">R$ {jurosPagos30.toFixed(2)}</p>
+      {/* Movimentação do Dia */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+        <div className="bg-gradient-to-br from-cyan-600 to-cyan-800 p-8 rounded-3xl shadow-2xl text-white">
+          <ClockIcon className="h-12 w-12 mb-4" />
+          <h3 className="text-2xl font-bold mb-2">Entradas Hoje</h3>
+          <p className="text-4xl">R$ 5.200,00</p>
         </div>
-        <div className="bg-green-900 p-10 rounded-3xl text-center shadow-2xl">
-          <p className="text-2xl text-green-300 mb-4">Juros Recebidos (30 dias)</p>
-          <p className="text-6xl font-bold">R$ {jurosRecebidos30.toFixed(2)}</p>
+
+        <div className="bg-gradient-to-br from-orange-600 to-orange-800 p-8 rounded-3xl shadow-2xl text-white">
+          <ClockIcon className="h-12 w-12 mb-4" />
+          <h3 className="text-2xl font-bold mb-2">Saídas Hoje</h3>
+          <p className="text-4xl">R$ 2.800,00</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 p-8 rounded-3xl shadow-2xl text-white">
+          <PlusCircleIcon className="h-12 w-12 mb-4" />
+          <h3 className="text-2xl font-bold mb-2">Novos a Pagar Hoje</h3>
+          <p className="text-4xl">3 contas</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-lime-600 to-lime-800 p-8 rounded-3xl shadow-2xl text-white">
+          <PlusCircleIcon className="h-12 w-12 mb-4" />
+          <h3 className="text-2xl font-bold mb-2">Novos a Receber Hoje</h3>
+          <p className="text-4xl">2 contas</p>
         </div>
       </div>
 
-      {/* Próximas contas */}
-      <div className="grid md:grid-cols-2 gap-12">
-        <div className="bg-gray-900 p-8 rounded-3xl">
-          <h2 className="text-3xl font-bold mb-6 flex items-center justify-between">
-            Próximas Contas a Pagar
-            <Link href="/contas-pagar" className="text-red-400 text-xl hover:underline">Ver todas →</Link>
-          </h2>
-          {proximasPagar.length === 0 ? (
-            <p className="text-center text-gray-400 text-xl py-12">Nenhuma conta a pagar pendente</p>
-          ) : (
-            <div className="space-y-4">
-              {proximasPagar.map((conta) => (
-                <div key={conta.id} className="bg-gray-800 p-6 rounded-2xl">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="text-2xl font-bold">{conta.fornecedores?.nome}</p>
-                      <p className="text-gray-400">Fatura #{conta.fatura} • Parcela {conta.parcela_atual}/{conta.parcelas}</p>
-                      <p className="text-gray-500">Vencimento: {formatDate(conta.data_vencimento)}</p>
-                    </div>
-                    <p className="text-3xl font-bold text-red-400">R$ {Number(conta.valor_parcela).toFixed(2)}</p>
-                  </div>
-                </div>
-              ))}
+      {/* Próximos Vencimentos / Recebimentos */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+        <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl border border-red-800/50">
+          <div className="flex items-center mb-6">
+            <ExclamationTriangleIcon className="h-10 w-10 text-red-400 mr-4" />
+            <h2 className="text-3xl font-bold text-red-400">Próximos Vencimentos (7 dias)</h2>
+          </div>
+          {/* Lista de itens - pode vir de API */}
+          <div className="space-y-4">
+            <div className="p-4 bg-gray-800 rounded-xl">
+              <p className="font-bold">FORNECEDOR TESTE</p>
+              <p className="text-sm text-gray-400">Venc. 08/01/2026 • R$ 1.234,56</p>
             </div>
-          )}
+            {/* Mais itens */}
+          </div>
         </div>
 
-        <div className="bg-gray-900 p-8 rounded-3xl">
-          <h2 className="text-3xl font-bold mb-6 flex items-center justify-between">
-            Próximas Contas a Receber
-            <Link href="/contas-receber" className="text-green-400 text-xl hover:underline">Ver todas →</Link>
-          </h2>
-          {proximasReceber.length === 0 ? (
-            <p className="text-center text-gray-400 text-xl py-12">Nenhuma conta a receber pendente</p>
-          ) : (
-            <div className="space-y-4">
-              {proximasReceber.map((conta) => (
-                <div key={conta.id} className="bg-gray-800 p-6 rounded-2xl">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="text-2xl font-bold">{conta.clientes?.nome}</p>
-                      <p className="text-gray-400">Fatura #{conta.fatura} • Parcela {conta.parcela_atual}/{conta.parcelas}</p>
-                      <p className="text-gray-500">Vencimento: {formatDate(conta.data_vencimento)}</p>
-                    </div>
-                    <p className="text-3xl font-bold text-green-400">R$ {Number(conta.valor_parcela).toFixed(2)}</p>
-                  </div>
-                </div>
-              ))}
+        <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl border border-green-800/50">
+          <div className="flex items-center mb-6">
+            <CalendarIcon className="h-10 w-10 text-green-400 mr-4" />
+            <h2 className="text-3xl font-bold text-green-400">Próximos Recebimentos (7 dias)</h2>
+          </div>
+          <div className="space-y-4">
+            <div className="p-4 bg-gray-800 rounded-xl">
+              <p className="font-bold">CLIENTE TESTE</p>
+              <p className="text-sm text-gray-400">Venc. 09/01/2026 • R$ 2.345,67</p>
             </div>
-          )}
+            {/* Mais itens */}
+          </div>
+        </div>
+      </div>
+
+      {/* Gráficos */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl">
+          <h3 className="text-2xl font-bold mb-6 flex items-center">
+            <ChartBarIcon className="h-8 w-8 text-cyan-400 mr-3" />
+            Entradas vs Saídas
+          </h3>
+          {/* Placeholder para gráfico */}
+          <div className="h-64 bg-gray-800 rounded-xl flex items-center justify-center">
+            <p className="text-gray-500">Gráfico de barras aqui (Chart.js ou Recharts)</p>
+          </div>
+        </div>
+
+        <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl">
+          <h3 className="text-2xl font-bold mb-6 flex items-center">
+            <ChartBarIcon className="h-8 w-8 text-green-400 mr-3" />
+            Recebimentos Mensais
+          </h3>
+          <div className="h-64 bg-gray-800 rounded-xl flex items-center justify-center">
+            <p className="text-gray-500">Gráfico de linha aqui</p>
+          </div>
+        </div>
+
+        <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl">
+          <h3 className="text-2xl font-bold mb-6 flex items-center">
+            <ChartBarIcon className="h-8 w-8 text-red-400 mr-3" />
+            Pagamentos Mensais
+          </h3>
+          <div className="h-64 bg-gray-800 rounded-xl flex items-center justify-center">
+            <p className="text-gray-500">Gráfico de pizza aqui</p>
+          </div>
         </div>
       </div>
     </div>
