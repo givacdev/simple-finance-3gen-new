@@ -20,6 +20,8 @@ interface Conta {
   parcelas: number;
   data_vencimento: string;
   pago: boolean;
+  data_pagamento?: string;
+  juros?: number;
   observacoes?: string;
 }
 
@@ -47,11 +49,12 @@ export default function ContasPagar() {
   const loadContas = async (userId: string) => {
     const { data } = await supabase
       .from('contas_pagar')
-      .select('* , fornecedor:fornecedores(nome)')
+      .select('*, fornecedor:fornecedores(nome)')
       .eq('user_id', userId)
-      .eq('pago', false)
+      .eq('pago', false)  // só pendentes!
       .order('data_vencimento', { ascending: true });
 
+    // Correção do type (join às vezes retorna array)
     const formattedData = (data || []).map((conta: any) => ({
       ...conta,
       fornecedor: Array.isArray(conta.fornecedor) ? conta.fornecedor[0] : conta.fornecedor,
@@ -72,12 +75,12 @@ export default function ContasPagar() {
   const handlePagar = async () => {
     if (!modalPagamento) return;
 
-    const hoje = new Date().toISOString().split('T')[0];
+    const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
     const juros = Number(valorJuros || 0);
     const valorFinal = Number(modalPagamento.valor_parcela) + juros;
 
     try {
-      await supabase
+      const { error: updateError } = await supabase
         .from('contas_pagar')
         .update({
           pago: true,
@@ -86,15 +89,18 @@ export default function ContasPagar() {
         })
         .eq('id', modalPagamento.id);
 
+      if (updateError) throw updateError;
+
       await supabase.from('movimentos_caixa').insert({
         user_id: user.id,
-        descricao: `Pagamento: ${modalPagamento.fatura} - ${modalPagamento.fornecedor?.nome || ''}`,
+        descricao: `Pagamento: ${modalPagamento.fatura} - ${modalPagamento.fornecedor?.nome || ''}` +
+                   (juros > 0 ? ` (juros R$ ${juros.toFixed(2)})` : ''),
         valor: valorFinal,
         tipo: 'saida',
         data: hoje,
       });
 
-      alert('Conta paga com sucesso!');
+      alert('Conta paga e registrada no caixa com sucesso!');
       setModalPagamento(null);
       setValorJuros('0');
       loadContas(user!.id);
@@ -167,6 +173,7 @@ export default function ContasPagar() {
         </div>
       </div>
 
+      {/* Modal de Pagamento */}
       {modalPagamento && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setModalPagamento(null)}>
           <div className="bg-gray-900 p-8 rounded-3xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
@@ -179,7 +186,7 @@ export default function ContasPagar() {
               <strong>Fatura:</strong> #{modalPagamento.fatura}
             </p>
             <p className="text-xl mb-6">
-              <strong>Valor:</strong> R$ {Number(modalPagamento.valor_parcela).toFixed(2)}
+              <strong>Valor da parcela:</strong> R$ {Number(modalPagamento.valor_parcela).toFixed(2)}
             </p>
 
             {estaVencida(modalPagamento.data_vencimento) && (
@@ -193,7 +200,9 @@ export default function ContasPagar() {
                   placeholder="0.00"
                   className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
                 />
-                <p className="text-red-400 text-sm mt-2">Conta vencida em {new Date(modalPagamento.data_vencimento).toLocaleDateString('pt-BR')}</p>
+                <p className="text-red-400 text-sm mt-2">
+                  Conta vencida em {new Date(modalPagamento.data_vencimento).toLocaleDateString('pt-BR')}
+                </p>
               </div>
             )}
 
