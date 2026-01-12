@@ -20,6 +20,8 @@ interface Conta {
   parcelas: number;
   data_vencimento: string;
   recebido: boolean;
+  data_recebimento?: string;
+  juros?: number;
   observacoes?: string;
 }
 
@@ -47,11 +49,12 @@ export default function ContasReceber() {
   const loadContas = async (userId: string) => {
     const { data } = await supabase
       .from('contas_receber')
-      .select('* , cliente:clientes(nome)')
+      .select('*, cliente:clientes(nome)')
       .eq('user_id', userId)
-      .eq('recebido', false)
+      .eq('recebido', false) // só pendentes!
       .order('data_vencimento', { ascending: true });
 
+    // Correção do type (Supabase às vezes retorna array no join)
     const formattedData = (data || []).map((conta: any) => ({
       ...conta,
       cliente: Array.isArray(conta.cliente) ? conta.cliente[0] : conta.cliente,
@@ -77,7 +80,7 @@ export default function ContasReceber() {
     const valorFinal = Number(modalRecebimento.valor_parcela) + juros;
 
     try {
-      await supabase
+      const { error: updateError } = await supabase
         .from('contas_receber')
         .update({
           recebido: true,
@@ -86,18 +89,24 @@ export default function ContasReceber() {
         })
         .eq('id', modalRecebimento.id);
 
-      await supabase.from('movimentos_caixa').insert({
+      if (updateError) throw updateError;
+
+      // Registra no caixa com juros
+      const { error: caixaError } = await supabase.from('movimentos_caixa').insert({
         user_id: user.id,
-        descricao: `Recebimento: ${modalRecebimento.fatura} - ${modalRecebimento.cliente?.nome || ''}`,
+        descricao: `Recebimento: ${modalRecebimento.fatura} - ${modalRecebimento.cliente?.nome || ''}` +
+                   (juros > 0 ? ` (juros R$ ${juros.toFixed(2)})` : ''),
         valor: valorFinal,
         tipo: 'entrada',
         data: hoje,
       });
 
-      alert('Conta recebida com sucesso!');
+      if (caixaError) throw caixaError;
+
+      alert('Conta recebida e registrada no caixa com sucesso!');
       setModalRecebimento(null);
       setValorJuros('0');
-      loadContas(user!.id);
+      loadContas(user!.id); // recarrega → a conta some!
     } catch (error: any) {
       alert('Erro ao receber conta: ' + error.message);
     }
@@ -167,6 +176,7 @@ export default function ContasReceber() {
         </div>
       </div>
 
+      {/* Modal de Recebimento */}
       {modalRecebimento && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setModalRecebimento(null)}>
           <div className="bg-gray-900 p-8 rounded-3xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
@@ -179,7 +189,7 @@ export default function ContasReceber() {
               <strong>Fatura:</strong> #{modalRecebimento.fatura}
             </p>
             <p className="text-xl mb-6">
-              <strong>Valor:</strong> R$ {Number(modalRecebimento.valor_parcela).toFixed(2)}
+              <strong>Valor da parcela:</strong> R$ {Number(modalRecebimento.valor_parcela).toFixed(2)}
             </p>
 
             {estaVencida(modalRecebimento.data_vencimento) && (
@@ -193,7 +203,9 @@ export default function ContasReceber() {
                   placeholder="0.00"
                   className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
                 />
-                <p className="text-red-400 text-sm mt-2">Conta vencida em {new Date(modalRecebimento.data_vencimento).toLocaleDateString('pt-BR')}</p>
+                <p className="text-red-400 text-sm mt-2">
+                  Conta vencida em {new Date(modalRecebimento.data_vencimento).toLocaleDateString('pt-BR')}
+                </p>
               </div>
             )}
 
