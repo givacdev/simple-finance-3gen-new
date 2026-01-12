@@ -104,10 +104,11 @@ export default function NovaContaPagar() {
           valor += 0.01;
         }
 
+        // Preview usa Date local para exibição correta
         const [ano, mes, dia] = dataVencimento.split('-');
-        let vencimento = new Date(`${ano}-${mes}-${dia}T12:00:00`);
-        vencimento.setMonth(vencimento.getMonth() + (i - 1));
-        const dataStr = vencimento.toISOString().split('T')[0];
+        const baseDate = new Date(Number(ano), Number(mes) - 1, Number(dia));
+        baseDate.setMonth(baseDate.getMonth() + (i - 1));
+        const dataStr = baseDate.toISOString().split('T')[0];
 
         preview.push({ valor: Number(valor.toFixed(2)), vencimento: dataStr });
       }
@@ -146,6 +147,16 @@ export default function NovaContaPagar() {
 
     try {
       for (const [index, p] of previewParcelas.entries()) {
+        // Data em string pura - sem conversão automática de timezone
+        const [ano, mes, dia] = dataVencimento.split('-');
+        const baseDate = new Date(Number(ano), Number(mes) - 1, Number(dia));
+        baseDate.setMonth(baseDate.getMonth() + index);
+
+        const anoV = baseDate.getFullYear();
+        const mesV = String(baseDate.getMonth() + 1).padStart(2, '0');
+        const diaV = String(baseDate.getDate()).padStart(2, '0');
+        const dataVencStr = `${anoV}-${mesV}-${diaV}`;
+
         await supabase.from('contas_pagar').insert({
           user_id: user.id,
           fornecedor_id: fornecedorSelecionado.id,
@@ -154,7 +165,7 @@ export default function NovaContaPagar() {
           valor_parcela: p.valor,
           parcelas: previewParcelas.length,
           parcela_atual: index + 1,
-          data_vencimento: p.vencimento,
+          data_vencimento: dataVencStr,  // ← Isso salva exatamente o dia certo!
           pago: false,
           observacoes: observacoes || null,
         });
