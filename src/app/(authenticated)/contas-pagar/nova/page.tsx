@@ -18,6 +18,7 @@ interface Fornecedor {
 interface Categoria {
   id: string;
   nome: string;
+  tipo: 'receita' | 'despesa';
 }
 
 export default function NovaContaPagar() {
@@ -66,8 +67,9 @@ export default function NovaContaPagar() {
   const loadCategorias = async (userId: string) => {
     const { data } = await supabase
       .from('categorias')
-      .select('id, nome')
+      .select('id, nome, tipo')
       .eq('user_id', userId)
+      .eq('tipo', 'despesa')  // Só despesas para contas a pagar!
       .order('nome', { ascending: true });
 
     setCategorias(data || []);
@@ -124,7 +126,6 @@ export default function NovaContaPagar() {
           valor += 0.01;
         }
 
-        // Preview usa Date local para exibir DD/MM
         const [ano, mes, dia] = dataVencimento.split('-');
         const baseDate = new Date(Number(ano), Number(mes) - 1, Number(dia));
         baseDate.setDate(baseDate.getDate() + (interval * (i - 1)));
@@ -142,6 +143,11 @@ export default function NovaContaPagar() {
   const handleSalvar = async () => {
     if (!fornecedorSelecionado) {
       alert('Selecione um fornecedor');
+      return;
+    }
+
+    if (!categoriaSelecionada) {
+      alert('Selecione uma categoria');
       return;
     }
 
@@ -170,18 +176,12 @@ export default function NovaContaPagar() {
       return;
     }
 
-    if (!categoriaSelecionada) {
-      alert('Selecione uma categoria');
-      return;
-    }
-
     try {
       for (const [index, p] of previewParcelas.entries()) {
-        // Data com ajuste de timezone BRT (+3h pra UTC salva correta)
         const [ano, mes, dia] = dataVencimento.split('-');
         const baseDate = new Date(Number(ano), Number(mes) - 1, Number(dia));
         baseDate.setDate(baseDate.getDate() + (Number(intervaloDias) * index));
-        baseDate.setHours(3, 0, 0, 0); // +3h compensa BRT → UTC
+        baseDate.setHours(3, 0, 0, 0); // Compensação BRT → UTC
 
         const anoV = baseDate.getUTCFullYear();
         const mesV = String(baseDate.getUTCMonth() + 1).padStart(2, '0');
@@ -198,7 +198,7 @@ export default function NovaContaPagar() {
           parcela_atual: index + 1,
           data_vencimento: dataVencStr,
           pago: false,
-          categoria: categoriaSelecionada, // Novo campo
+          categoria: categoriaSelecionada,
           observacoes: observacoes || null,
         });
       }
