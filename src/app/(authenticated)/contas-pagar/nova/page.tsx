@@ -15,18 +15,25 @@ interface Fornecedor {
   codigo: string;
 }
 
+interface Categoria {
+  id: string;
+  nome: string;
+}
+
 export default function NovaContaPagar() {
   const [user, setUser] = useState<any>(null);
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [filtro, setFiltro] = useState('');
   const [fornecedorSelecionado, setFornecedorSelecionado] = useState<Fornecedor | null>(null);
+  const [categoriaSelecionada, setCategoriaSelecionada] = useState('');
   const [modalNovo, setModalNovo] = useState(false);
   const [nomeNovo, setNomeNovo] = useState('');
   const [codigoNovo, setCodigoNovo] = useState('');
   const [fatura, setFatura] = useState('');
   const [valorTotal, setValorTotal] = useState('');
   const [parcelas, setParcelas] = useState('1');
-  const [intervaloDias, setIntervaloDias] = useState('30'); // Novo campo: intervalo de dias entre parcelas
+  const [intervaloDias, setIntervaloDias] = useState('30');
   const [dataVencimento, setDataVencimento] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [previewParcelas, setPreviewParcelas] = useState<{ valor: number; vencimento: string }[]>([]);
@@ -41,6 +48,7 @@ export default function NovaContaPagar() {
       }
       setUser(data.session.user);
       loadFornecedores(data.session.user.id);
+      loadCategorias(data.session.user.id);
     };
     checkSession();
   }, [router]);
@@ -53,6 +61,16 @@ export default function NovaContaPagar() {
       .order('nome', { ascending: true });
 
     setFornecedores(data || []);
+  };
+
+  const loadCategorias = async (userId: string) => {
+    const { data } = await supabase
+      .from('categorias')
+      .select('id, nome')
+      .eq('user_id', userId)
+      .order('nome', { ascending: true });
+
+    setCategorias(data || []);
   };
 
   const fornecedoresFiltrados = fornecedores.filter(f => 
@@ -106,7 +124,7 @@ export default function NovaContaPagar() {
           valor += 0.01;
         }
 
-        // Preview usa Date local para mostrar correto
+        // Preview usa Date local para exibir DD/MM
         const [ano, mes, dia] = dataVencimento.split('-');
         const baseDate = new Date(Number(ano), Number(mes) - 1, Number(dia));
         baseDate.setDate(baseDate.getDate() + (interval * (i - 1)));
@@ -152,13 +170,18 @@ export default function NovaContaPagar() {
       return;
     }
 
+    if (!categoriaSelecionada) {
+      alert('Selecione uma categoria');
+      return;
+    }
+
     try {
       for (const [index, p] of previewParcelas.entries()) {
-        // Data em string pura - com ajuste de timezone BRT (UTC-3)
+        // Data com ajuste de timezone BRT (+3h pra UTC salva correta)
         const [ano, mes, dia] = dataVencimento.split('-');
         const baseDate = new Date(Number(ano), Number(mes) - 1, Number(dia));
         baseDate.setDate(baseDate.getDate() + (Number(intervaloDias) * index));
-        baseDate.setHours(3, 0, 0, 0); // Adiciona +3h pra compensar BRT → UTC
+        baseDate.setHours(3, 0, 0, 0); // +3h compensa BRT → UTC
 
         const anoV = baseDate.getUTCFullYear();
         const mesV = String(baseDate.getUTCMonth() + 1).padStart(2, '0');
@@ -175,6 +198,7 @@ export default function NovaContaPagar() {
           parcela_atual: index + 1,
           data_vencimento: dataVencStr,
           pago: false,
+          categoria: categoriaSelecionada, // Novo campo
           observacoes: observacoes || null,
         });
       }
@@ -291,6 +315,20 @@ export default function NovaContaPagar() {
               className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
             />
           </div>
+        </div>
+
+        <div className="mb-8">
+          <label className="block text-xl mb-2">Categoria *</label>
+          <select
+            value={categoriaSelecionada}
+            onChange={(e) => setCategoriaSelecionada(e.target.value)}
+            className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
+          >
+            <option value="">Selecione uma categoria</option>
+            {categorias.map(cat => (
+              <option key={cat.id} value={cat.id}>{cat.nome}</option>
+            ))}
+          </select>
         </div>
 
         {previewParcelas.length > 0 && (
