@@ -26,6 +26,7 @@ export default function NovaContaPagar() {
   const [fatura, setFatura] = useState('');
   const [valorTotal, setValorTotal] = useState('');
   const [parcelas, setParcelas] = useState('1');
+  const [intervaloDias, setIntervaloDias] = useState('30'); // Novo campo: intervalo de dias entre parcelas
   const [dataVencimento, setDataVencimento] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [previewParcelas, setPreviewParcelas] = useState<{ valor: number; vencimento: string }[]>([]);
@@ -91,9 +92,10 @@ export default function NovaContaPagar() {
   };
 
   useEffect(() => {
-    if (valorTotal && parcelas && dataVencimento && fornecedorSelecionado) {
+    if (valorTotal && parcelas && dataVencimento && intervaloDias && fornecedorSelecionado) {
       const total = Number(valorTotal);
       const numParcelas = Number(parcelas);
+      const interval = Number(intervaloDias);
       const valorBase = Math.floor((total / numParcelas) * 100) / 100;
       const centavosExtras = Math.round((total - (valorBase * numParcelas)) * 100);
       const preview = [];
@@ -104,10 +106,10 @@ export default function NovaContaPagar() {
           valor += 0.01;
         }
 
-        // Preview usa Date local para exibição correta
+        // Preview usa Date local para mostrar correto
         const [ano, mes, dia] = dataVencimento.split('-');
         const baseDate = new Date(Number(ano), Number(mes) - 1, Number(dia));
-        baseDate.setMonth(baseDate.getMonth() + (i - 1));
+        baseDate.setDate(baseDate.getDate() + (interval * (i - 1)));
         const dataStr = baseDate.toISOString().split('T')[0];
 
         preview.push({ valor: Number(valor.toFixed(2)), vencimento: dataStr });
@@ -117,7 +119,7 @@ export default function NovaContaPagar() {
     } else {
       setPreviewParcelas([]);
     }
-  }, [valorTotal, parcelas, dataVencimento, fornecedorSelecionado]);
+  }, [valorTotal, parcelas, intervaloDias, dataVencimento, fornecedorSelecionado]);
 
   const handleSalvar = async () => {
     if (!fornecedorSelecionado) {
@@ -145,16 +147,22 @@ export default function NovaContaPagar() {
       return;
     }
 
+    if (!intervaloDias || Number(intervaloDias) <= 0) {
+      alert('Informe um intervalo válido');
+      return;
+    }
+
     try {
       for (const [index, p] of previewParcelas.entries()) {
-        // Data em string pura - sem conversão automática de timezone
+        // Data em string pura - com ajuste de timezone BRT (UTC-3)
         const [ano, mes, dia] = dataVencimento.split('-');
         const baseDate = new Date(Number(ano), Number(mes) - 1, Number(dia));
-        baseDate.setMonth(baseDate.getMonth() + index);
+        baseDate.setDate(baseDate.getDate() + (Number(intervaloDias) * index));
+        baseDate.setHours(3, 0, 0, 0); // Adiciona +3h pra compensar BRT → UTC
 
-        const anoV = baseDate.getFullYear();
-        const mesV = String(baseDate.getMonth() + 1).padStart(2, '0');
-        const diaV = String(baseDate.getDate()).padStart(2, '0');
+        const anoV = baseDate.getUTCFullYear();
+        const mesV = String(baseDate.getUTCMonth() + 1).padStart(2, '0');
+        const diaV = String(baseDate.getUTCDate()).padStart(2, '0');
         const dataVencStr = `${anoV}-${mesV}-${diaV}`;
 
         await supabase.from('contas_pagar').insert({
@@ -165,7 +173,7 @@ export default function NovaContaPagar() {
           valor_parcela: p.valor,
           parcelas: previewParcelas.length,
           parcela_atual: index + 1,
-          data_vencimento: dataVencStr,  // ← Isso salva exatamente o dia certo!
+          data_vencimento: dataVencStr,
           pago: false,
           observacoes: observacoes || null,
         });
@@ -239,7 +247,7 @@ export default function NovaContaPagar() {
           </div>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8 mb-8">
+        <div className="grid md:grid-cols-4 gap-8 mb-8">
           <div>
             <label className="block text-xl mb-2">Valor Total (R$)</label>
             <input
@@ -259,6 +267,17 @@ export default function NovaContaPagar() {
               max="36"
               value={parcelas}
               onChange={(e) => setParcelas(e.target.value)}
+              className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xl mb-2">Intervalo de Dias</label>
+            <input
+              type="number"
+              min="1"
+              value={intervaloDias}
+              onChange={(e) => setIntervaloDias(e.target.value)}
               className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
             />
           </div>
