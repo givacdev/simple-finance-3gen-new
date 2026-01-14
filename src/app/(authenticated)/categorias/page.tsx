@@ -37,11 +37,17 @@ export default function Categorias() {
   }, [router]);
 
   const loadCategorias = async (userId: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('categorias')
       .select('*')
       .eq('user_id', userId)
       .order('nome', { ascending: true });
+
+    if (error) {
+      console.error('Erro ao carregar categorias:', error);
+      alert('Erro ao carregar categorias');
+      return;
+    }
 
     setCategorias(data || []);
   };
@@ -54,15 +60,19 @@ export default function Categorias() {
 
     try {
       if (editando) {
-        await supabase
+        const { error } = await supabase
           .from('categorias')
           .update({ nome: nome.trim(), tipo })
           .eq('id', editando.id);
+
+        if (error) throw error;
         alert('Categoria atualizada com sucesso!');
       } else {
-        await supabase
+        const { error } = await supabase
           .from('categorias')
           .insert({ user_id: user.id, nome: nome.trim(), tipo });
+
+        if (error) throw error;
         alert('Categoria criada com sucesso!');
       }
 
@@ -85,7 +95,8 @@ export default function Categorias() {
     if (!confirm('Tem certeza que deseja excluir esta categoria?')) return;
 
     try {
-      await supabase.from('categorias').delete().eq('id', id);
+      const { error } = await supabase.from('categorias').delete().eq('id', id);
+      if (error) throw error;
       alert('Categoria excluída com sucesso!');
       loadCategorias(user.id);
     } catch (error: any) {
@@ -100,7 +111,7 @@ export default function Categorias() {
       <h1 className="text-5xl font-bold text-white mb-8">Categorias</h1>
       <p className="text-xl text-gray-400 mb-12">Organize entradas e saídas do seu caixa</p>
 
-      {/* Formulário de criação/edição */}
+      {/* Formulário */}
       <div className="bg-gray-900 rounded-3xl p-8 mb-12 max-w-2xl">
         <h2 className="text-3xl font-bold text-green-400 mb-6">
           {editando ? 'Editar Categoria' : 'Nova Categoria'}
@@ -153,7 +164,7 @@ export default function Categorias() {
         </div>
       </div>
 
-      {/* Lista de categorias */}
+      {/* Lista */}
       <div className="bg-gray-900 rounded-3xl overflow-hidden">
         <div className="divide-y divide-gray-800">
           {categorias.length === 0 ? (
