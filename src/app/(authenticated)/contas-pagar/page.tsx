@@ -42,6 +42,7 @@ export default function ContasPagar() {
         return;
       }
       setUser(data.session.user);
+      console.log('User ID:', data.session.user.id); // ← Log teu user_id aqui!
       loadContas(data.session.user.id);
     };
     checkSession();
@@ -70,11 +71,10 @@ export default function ContasPagar() {
 
     // Debug no console
     console.log('Contas a pagar carregadas:', formattedData.length);
-    console.log('Dados:', formattedData);
+    console.log('Dados completos:', formattedData);
   };
 
   const contasFiltradas = contas.filter(conta => {
-    if (!busca.trim()) return true;
     const termo = busca.toLowerCase();
     return (
       conta.fornecedor?.nome?.toLowerCase().includes(termo) ||
@@ -110,13 +110,12 @@ export default function ContasPagar() {
         valor: valorFinal,
         tipo: 'saida',
         data: hoje,
-        categoria: modalPagamento.categoria || 'Sem categoria',
       });
 
       alert('Conta paga e registrada no caixa com sucesso!');
       setModalPagamento(null);
       setValorJuros('0');
-      loadContas(user!.id); // Recarrega a lista
+      loadContas(user!.id);
     } catch (error: any) {
       alert('Erro ao pagar conta: ' + error.message);
     }
@@ -148,7 +147,7 @@ export default function ContasPagar() {
           type="text"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar por fornecedor, fatura, observação ou categoria..."
+          placeholder="Buscar por fornecedor, fatura ou observação..."
           className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
         />
       </div>
@@ -156,18 +155,13 @@ export default function ContasPagar() {
       <div className="bg-gray-900 rounded-2xl overflow-hidden">
         <div className="divide-y divide-gray-800">
           {contasFiltradas.length === 0 ? (
-            <p className="p-12 text-center text-gray-400 text-2xl">
-              {busca.trim() 
-                ? 'Nenhuma conta encontrada com esse termo de busca.' 
-                : 'Nenhuma conta a pagar pendente no momento.'}
-            </p>
+            <p className="p-12 text-center text-gray-400 text-2xl">Nenhuma conta a pagar pendente.</p>
           ) : (
             contasFiltradas.map((conta) => (
               <div key={conta.id} className="p-8 hover:bg-gray-800 transition flex justify-between items-center">
                 <div>
                   <p className="text-3xl font-bold">{conta.fornecedor?.nome || 'Sem fornecedor'}</p>
                   <p className="text-gray-400 mt-2">Fatura #{conta.fatura}</p>
-                  {conta.categoria && <p className="text-gray-500">Categoria: {conta.categoria}</p>}
                   {conta.observacoes && <p className="text-gray-500">Obs: {conta.observacoes}</p>}
                   <p className="mt-2">
                     PARCELA {conta.parcela_atual}/{conta.parcelas}
@@ -191,14 +185,13 @@ export default function ContasPagar() {
         </div>
       </div>
 
-      {/* Modal de Pagamento */}
       {modalPagamento && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setModalPagamento(null)}>
           <div className="bg-gray-900 p-8 rounded-3xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-3xl font-bold text-red-400 mb-6 text-center">Pagar Conta</h2>
             
             <p className="text-xl mb-4">
-              <strong>Fornecedor:</strong> {modalPagamento.fornecedor?.nome || 'Sem fornecedor'}
+              <strong>Fornecedor:</strong> {modalPagamento.fornecedor?.nome}
             </p>
             <p className="text-xl mb-4">
               <strong>Fatura:</strong> #{modalPagamento.fatura}
@@ -218,9 +211,7 @@ export default function ContasPagar() {
                   placeholder="0.00"
                   className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
                 />
-                <p className="text-red-400 text-sm mt-2">
-                  Conta vencida em {new Date(modalPagamento.data_vencimento).toLocaleDateString('pt-BR')}
-                </p>
+                <p className="text-red-400 text-sm mt-2">Conta vencida em {new Date(modalPagamento.data_vencimento).toLocaleDateString('pt-BR')}</p>
               </div>
             )}
 
