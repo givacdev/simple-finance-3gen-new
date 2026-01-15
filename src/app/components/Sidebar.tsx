@@ -1,90 +1,38 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { usePathname } from 'next/navigation';
 
 export default function Sidebar() {
-  const router = useRouter();
+  const pathname = usePathname();
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push('/');
-  };
+  const isActive = (path: string) => pathname === path;
 
   return (
-    <div className="bg-gray-900 w-64 min-h-screen p-8 flex flex-col justify-between">
-      <div>
-        <h1 className="text-3xl font-bold mb-12">Simple Finance 3Gen</h1>
+    <div className="w-64 bg-gray-900 h-screen p-6 fixed left-0 top-0 flex flex-col">
+      <h1 className="text-3xl font-bold text-white mb-12">Simple Finance</h1>
 
-        <Link href="/dashboard">
-          <button className="w-full py-4 mb-4 bg-blue-600 rounded-xl font-bold text-xl flex items-center gap-4">
-            <span>🏠</span> Dashboard
-          </button>
+      <nav className="flex flex-col gap-4">
+        <Link href="/dashboard" className={`flex items-center gap-3 p-4 rounded-lg ${isActive('/dashboard') ? 'bg-gray-800' : 'hover:bg-gray-800'}`}>
+          Dashboard
         </Link>
-
-        {/* Removida a aba Lançamentos */}
-
-        <Link href="/contas-pagar">
-          <button className="w-full py-4 mb-4 bg-red-600 rounded-xl font-bold text-xl flex items-center gap-4">
-            <span>🔴</span> Contas a Pagar
-          </button>
+        <Link href="/contas-pagar" className={`flex items-center gap-3 p-4 rounded-lg ${isActive('/contas-pagar') ? 'bg-red-900' : 'hover:bg-gray-800'}`}>
+          <span className="text-red-400">Contas a Pagar</span>
         </Link>
-
-        <Link href="/contas-receber">
-          <button className="w-full py-4 mb-4 bg-green-600 rounded-xl font-bold text-xl flex items-center gap-4">
-            <span>🟢</span> Contas a Receber
-          </button>
+        <Link href="/contas-receber" className={`flex items-center gap-3 p-4 rounded-lg ${isActive('/contas-receber') ? 'bg-green-900' : 'hover:bg-gray-800'}`}>
+          <span className="text-green-400">Contas a Receber</span>
         </Link>
-
-        <Link href="/caixa">
-          <button className="w-full py-4 mb-4 bg-purple-600 rounded-xl font-bold text-xl flex items-center gap-4">
-            <span>📊</span> Movimento de Caixa
-          </button>
+        <Link href="/categorias" className={`flex items-center gap-3 p-4 rounded-lg ${isActive('/categorias') ? 'bg-gray-800' : 'hover:bg-gray-800'}`}>
+          Categorias
         </Link>
-
-        <Link href="/contatos">
-          <button className="w-full py-4 mb-4 bg-indigo-600 rounded-xl font-bold text-xl flex items-center gap-4">
-            <span>👥</span> Contatos
-          </button>
+        {/* Removido o botão de Movimento de Caixa */}
+        <Link href="/relatorios" className={`flex items-center gap-3 p-4 rounded-lg ${isActive('/relatorios') ? 'bg-gray-800' : 'hover:bg-gray-800'}`}>
+          Relatórios
         </Link>
-
-        <Link href="/categorias">
-          <button className="w-full py-4 mb-4 bg-yellow-600 rounded-xl font-bold text-xl flex items-center gap-4">
-            <span>🏷️</span> Categorias
-          </button>
+        <Link href="/perfil" className={`flex items-center gap-3 p-4 rounded-lg ${isActive('/perfil') ? 'bg-gray-800' : 'hover:bg-gray-800'}`}>
+          Meu Perfil
         </Link>
-
-        <Link href="/relatorios">
-          <button className="w-full py-4 mb-4 bg-teal-600 rounded-xl font-bold text-xl flex items-center gap-4">
-            <span>📈</span> Relatórios
-          </button>
-        </Link>
-
-        <Link href="/perfil">
-          <button className="w-full py-4 mb-4 bg-gray-700 rounded-xl font-bold text-xl flex items-center gap-4">
-            <span>👤</span> Meu Perfil
-          </button>
-        </Link>
-
-        <Link href="/planos">
-          <button className="w-full py-4 mb-4 bg-orange-600 rounded-xl font-bold text-xl flex items-center gap-4">
-            <span>⭐</span> Planos
-          </button>
-        </Link>
-      </div>
-
-      <button
-        onClick={handleLogout}
-        className="w-full py-4 bg-red-700 rounded-xl font-bold text-xl"
-      >
-        Sair
-      </button>
+      </nav>
     </div>
   );
 }
