@@ -25,13 +25,6 @@ export default function Dashboard() {
   const [novosReceberHoje, setNovosReceberHoje] = useState(0);
   const [entradasHoje, setEntradasHoje] = useState(0);
   const [saidasHoje, setSaidasHoje] = useState(0);
-
-  // Modais
-  const [modalEntrada, setModalEntrada] = useState(false);
-  const [modalSaida, setModalSaida] = useState(false);
-  const [descricao, setDescricao] = useState('');
-  const [valor, setValor] = useState('');
-  const [categoria, setCategoria] = useState('');
   const router = useRouter();
 
   useEffect(() => {
@@ -48,75 +41,150 @@ export default function Dashboard() {
   }, [router]);
 
   const loadDashboardData = async (userId: string) => {
-    // ... (todo o loadDashboardData igual ao anterior, mantendo juros %, novos hoje, etc.)
-  };
+    const hoje = DateTime.local().setZone('America/Sao_Paulo');
+    const hojeInicio = hoje.startOf('day').toISO();
+    const hojeFim = hoje.endOf('day').toISO();
+    const seteDias = hoje.plus({ days: 7 }).endOf('day').toISO();
+    const trintaDiasAtras = hoje.minus({ days: 30 }).startOf('day').toISO();
 
-  const handleSalvarMovimento = async (tipo: 'entrada' | 'saida') => {
-    if (!descricao.trim() || !valor || Number(valor) <= 0 || !categoria) {
-      alert('Preencha todos os campos obrigatórios');
-      return;
-    }
-
-    const hoje = DateTime.local().setZone('America/Sao_Paulo').toISODate();
-
-    const { error } = await supabase.from('movimentos_caixa').insert({
-      user_id: user.id,
-      descricao,
-      valor: Number(valor),
-      tipo,
-      data: hoje,
-      categoria,
+    // Saldo Caixa
+    const { data: movimentos } = await supabase
+      .from('movimentos_caixa')
+      .select('valor, tipo')
+      .eq('user_id', userId);
+    let saldo = 0;
+    movimentos?.forEach(m => {
+      saldo += m.tipo === 'entrada' ? m.valor : -m.valor;
     });
+    setSaldoCaixa(saldo);
 
-    if (error) {
-      alert('Erro ao salvar: ' + error.message);
-      return;
-    }
+    // Total a Receber e Pagar
+    const { data: pagar } = await supabase
+      .from('contas_pagar')
+      .select('valor_parcela')
+      .eq('user_id', userId)
+      .eq('pago', false);
+    setTotalPagar(pagar?.reduce((acc, c) => acc + (c.valor_parcela || 0), 0) || 0);
 
-    alert(`${tipo === 'entrada' ? 'Entrada' : 'Saída'} registrada com sucesso!`);
-    setModalEntrada(false);
-    setModalSaida(false);
-    setDescricao('');
-    setValor('');
-    setCategoria('');
-    loadDashboardData(user.id); // Recarrega dados
+    const { data: receber } = await supabase
+      .from('contas_receber')
+      .select('valor_parcela')
+      .eq('user_id', userId)
+      .eq('recebido', false);
+    setTotalReceber(receber?.reduce((acc, c) => acc + (c.valor_parcela || 0), 0) || 0);
+
+    // Juros e % últimos 30 dias
+    const { data: pagarPagos30 } = await supabase
+      .from('contas_pagar')
+      .select('juros, valor_parcela')
+      .eq('user_id', userId)
+      .eq('pago', true)
+      .gte('data_pagamento', trintaDiasAtras);
+    const jurosP = pagarPagos30?.reduce((acc, c) => acc + (c.juros || 0), 0) || 0;
+    const totalP = pagarPagos30?.reduce((acc, c) => acc + (c.valor_parcela || 0), 0) || 0;
+    setJurosPagos(jurosP);
+    setTotalPago30Dias(totalP);
+
+    const { data: receberRecebidos30 } = await supabase
+      .from('contas_receber')
+      .select('juros, valor_parcela')
+      .eq('user_id', userId)
+      .eq('recebido', true)
+      .gte('data_recebimento', trintaDiasAtras);
+    const jurosR = receberRecebidos30?.reduce((acc, c) => acc + (c.juros || 0), 0) || 0;
+    const totalR = receberRecebidos30?.reduce((acc, c) => acc + (c.valor_parcela || 0), 0) || 0;
+    setJurosRecebidos(jurosR);
+    setTotalRecebido30Dias(totalR);
+
+    // Próximos Vencimentos
+    const { data: pagarProximas } = await supabase
+      .from('contas_pagar')
+      .select('*, fornecedor:fornecedores(nome)')
+      .eq('user_id', userId)
+      .eq('pago', false)
+      .lte('data_vencimento', seteDias)
+      .order('data_vencimento', { ascending: true });
+    setContasPagarProximas(pagarProximas || []);
+
+    // Próximos Recebimentos
+    const { data: receberProximas } = await supabase
+      .from('contas_receber')
+      .select('*, cliente:clientes(nome)')
+      .eq('user_id', userId)
+      .eq('recebido', false)
+      .lte('data_vencimento', seteDias)
+      .order('data_vencimento', { ascending: true });
+    setContasReceberProximas(receberProximas || []);
+
+    // Novos Hoje
+    const { count: novosP } = await supabase
+      .from('contas_pagar')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .gte('created_at', hojeInicio)
+      .lte('created_at', hojeFim);
+    setNovosPagarHoje(novosP || 0);
+
+    const { count: novosR } = await supabase
+      .from('contas_receber')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .gte('created_at', hojeInicio)
+      .lte('created_at', hojeFim);
+    setNovosReceberHoje(novosR || 0);
+
+    // Entradas/Saídas Hoje
+    const { data: movHoje } = await supabase
+      .from('movimentos_caixa')
+      .select('valor, tipo')
+      .eq('user_id', userId)
+      .gte('data', hojeInicio)
+      .lte('data', hojeFim);
+    let entradas = 0, saidas = 0;
+    movHoje?.forEach(m => {
+      if (m.tipo === 'entrada') entradas += m.valor;
+      else saidas += m.valor;
+    });
+    setEntradasHoje(entradas);
+    setSaidasHoje(saidas);
   };
 
   const formatDate = (iso: string) => {
-    return DateTime.fromISO(iso, { zone: 'America/Sao_Paulo' }).toFormat('dd/MM/yyyy');
+    const dt = DateTime.fromISO(iso, { zone: 'America/Sao_Paulo' });
+    return dt.isValid ? dt.toFormat('dd/MM/yyyy') : '—';
   };
 
-  // ... (percentJurosRecebidos e percentJurosPagos iguais)
+  const percentJurosRecebidos = totalRecebido30Dias > 0 ? ((jurosRecebidos / totalRecebido30Dias) * 100).toFixed(1) : 0;
+  const percentJurosPagos = totalPago30Dias > 0 ? ((jurosPagos / totalPago30Dias) * 100).toFixed(1) : 0;
 
   if (!user) return null;
 
   return (
     <div className="min-h-screen bg-black text-white pl-0 lg:pl-64 p-6 lg:p-12">
-      <h1 className="text-5xl font-bold mb-12">Dashboard</h1>
+      <h1 className="text-4xl lg:text-5xl font-bold mb-10 lg:mb-12">Dashboard</h1>
 
-      {/* Cards principais */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
-        {/* Card Saldo em Caixa - grande */}
-        <div className="bg-blue-900/50 backdrop-blur-md rounded-3xl p-8 text-center border border-blue-700/30 row-span-2 flex flex-col justify-between min-h-[400px]">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-12">
+        {/* Card Saldo em Caixa - grande e quadrado */}
+        <div className="col-span-1 lg:col-span-2 bg-blue-900/50 backdrop-blur-md rounded-3xl p-8 text-center border border-blue-700/30 min-h-[380px] flex flex-col justify-between">
           <div>
-            <p className="text-2xl mb-4">Saldo em Caixa</p>
-            <p className="text-6xl font-bold mb-8">R$ {saldoCaixa.toFixed(2)}</p>
+            <p className="text-2xl lg:text-3xl mb-4">Saldo em Caixa</p>
+            <p className="text-5xl lg:text-6xl font-bold mb-8">R$ {saldoCaixa.toFixed(2)}</p>
           </div>
-          <div className="flex justify-center gap-6 flex-wrap">
+          <div className="flex justify-center gap-4 lg:gap-6 flex-wrap">
             <button 
-              onClick={() => setModalEntrada(true)} 
+              onClick={() => alert('Modal de Entrada - implemente aqui o modal real')} 
               className="bg-green-600 hover:bg-green-700 px-6 py-4 rounded-xl font-bold text-lg"
             >
               Entrada
             </button>
             <button 
-              onClick={() => setModalSaida(true)} 
+              onClick={() => alert('Modal de Saída - implemente aqui o modal real')} 
               className="bg-red-600 hover:bg-red-700 px-6 py-4 rounded-xl font-bold text-lg"
             >
               Saída
             </button>
             <button 
-              onClick={() => router.push('/movimentos')} 
+              onClick={() => router.push('/lancamentos')} 
               className="bg-gray-600 hover:bg-gray-700 px-6 py-4 rounded-xl font-bold text-lg"
             >
               Movimentação
@@ -124,78 +192,106 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Outros cards */}
-        {/* ... (mantém igual ao anterior) */}
+        {/* Outros cards - 2 linhas de 4 */}
+        <div className="bg-green-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-green-700/30">
+          <p className="text-xl mb-2">Total a Receber</p>
+          <p className="text-4xl font-bold">R$ {totalReceber.toFixed(2)}</p>
+        </div>
+        <div className="bg-red-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-red-700/30">
+          <p className="text-xl mb-2">Total a Pagar</p>
+          <p className="text-4xl font-bold">R$ {totalPagar.toFixed(2)}</p>
+        </div>
+        <div className="bg-teal-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-teal-700/30">
+          <p className="text-xl mb-2">Juros Recebidos</p>
+          <p className="text-4xl font-bold">R$ {jurosRecebidos.toFixed(2)}</p>
+          <p className="text-sm text-gray-300 mt-1">{percentJurosRecebidos}% dos últimos 30 dias</p>
+        </div>
+        <div className="bg-purple-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-purple-700/30">
+          <p className="text-xl mb-2">Juros Pagos</p>
+          <p className="text-4xl font-bold">R$ {jurosPagos.toFixed(2)}</p>
+          <p className="text-sm text-gray-300 mt-1">{percentJurosPagos}% dos últimos 30 dias</p>
+        </div>
+
+        <div className="bg-teal-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-teal-700/30">
+          <p className="text-xl mb-2">Entradas Hoje</p>
+          <p className="text-3xl font-bold">R$ {entradasHoje.toFixed(2)}</p>
+        </div>
+        <div className="bg-orange-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-orange-700/30">
+          <p className="text-xl mb-2">Saídas Hoje</p>
+          <p className="text-3xl font-bold">R$ {saidasHoje.toFixed(2)}</p>
+        </div>
+        <div className="bg-purple-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-purple-700/30">
+          <p className="text-xl mb-2">Novos a Pagar Hoje</p>
+          <p className="text-3xl font-bold">{novosPagarHoje} contas</p>
+        </div>
+        <div className="bg-green-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-green-700/30">
+          <p className="text-xl mb-2">Novos a Receber Hoje</p>
+          <p className="text-3xl font-bold">{novosReceberHoje} contas</p>
+        </div>
       </div>
 
-      {/* Modais de Entrada e Saída */}
-      {modalEntrada && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={() => setModalEntrada(false)}>
-          <div className="bg-gray-900 p-8 rounded-3xl max-w-lg w-full" onClick={e => e.stopPropagation()}>
-            <h2 className="text-3xl font-bold text-green-400 mb-6">Nova Entrada</h2>
-            <div className="mb-4">
-              <label className="block text-xl mb-2">Descrição *</label>
-              <input
-                value={descricao}
-                onChange={e => setDescricao(e.target.value)}
-                className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
-                placeholder="Ex: Venda do dia"
-              />
-            </div>
-            <div className="mb-4">
-              <label className="block text-xl mb-2">Valor (R$) *</label>
-              <input
-                type="number"
-                step="0.01"
-                value={valor}
-                onChange={e => setValor(e.target.value)}
-                className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
-              />
-            </div>
-            <div className="mb-6">
-              <label className="block text-xl mb-2">Categoria *</label>
-              <select
-                value={categoria}
-                onChange={e => setCategoria(e.target.value)}
-                className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
-              >
-                <option value="">Selecione</option>
-                <option value="Vendas">Vendas</option>
-                <option value="Serviços">Serviços</option>
-                <option value="Outras">Outras</option>
-              </select>
-            </div>
-            <div className="flex justify-end gap-6">
-              <button onClick={() => setModalEntrada(false)} className="px-8 py-4 bg-gray-700 rounded-xl font-bold text-xl">
-                Cancelar
-              </button>
-              <button onClick={() => handleSalvarMovimento('entrada')} className="px-8 py-4 bg-green-600 rounded-xl font-bold text-xl">
-                Salvar Entrada
-              </button>
-            </div>
+      {/* Cards Próximos */}
+      <div className="grid md:grid-cols-2 gap-8 mb-12">
+        <div className="bg-gray-900/80 backdrop-blur-md rounded-3xl p-8 border border-gray-700/50">
+          <h3 className="text-2xl font-bold text-red-400 mb-6 flex items-center">
+            <span className="mr-3 text-3xl">⚠️</span> Próximos Vencimentos (7 dias + Vencidas)
+          </h3>
+          <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+            {contasPagarProximas.length === 0 ? (
+              <p className="text-gray-400 text-center py-8">Nenhum vencimento próximo.</p>
+            ) : (
+              contasPagarProximas.map((conta) => (
+                <div key={conta.id} className="p-5 bg-gray-800/70 rounded-xl flex justify-between items-center border border-red-900/30 hover:border-red-600/50 transition">
+                  <div>
+                    <p className="font-bold text-lg">{conta.fornecedor?.nome || 'Sem fornecedor'}</p>
+                    <p className="text-sm text-gray-300 mt-1">Vencimento: {formatDate(conta.data_vencimento)}</p>
+                    <p className="text-sm text-red-400 font-medium mt-1">R$ {Number(conta.valor_parcela).toFixed(2)}</p>
+                  </div>
+                  <button onClick={() => router.push('/contas-pagar')} className="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-bold text-sm transition">
+                    Pagar
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         </div>
-      )}
 
-      {modalSaida && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={() => setModalSaida(false)}>
-          <div className="bg-gray-900 p-8 rounded-3xl max-w-lg w-full" onClick={e => e.stopPropagation()}>
-            <h2 className="text-3xl font-bold text-red-400 mb-6">Nova Saída</h2>
-            {/* Mesmos campos do modal Entrada */}
-            {/* ... (copia os inputs do modal Entrada aqui) */}
-            <div className="flex justify-end gap-6">
-              <button onClick={() => setModalSaida(false)} className="px-8 py-4 bg-gray-700 rounded-xl font-bold text-xl">
-                Cancelar
-              </button>
-              <button onClick={() => handleSalvarMovimento('saida')} className="px-8 py-4 bg-red-600 rounded-xl font-bold text-xl">
-                Salvar Saída
-              </button>
-            </div>
+        <div className="bg-gray-900/80 backdrop-blur-md rounded-3xl p-8 border border-gray-700/50">
+          <h3 className="text-2xl font-bold text-green-400 mb-6 flex items-center">
+            <span className="mr-3 text-3xl">📅</span> Próximos Recebimentos (7 dias + Vencidos)
+          </h3>
+          <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+            {contasReceberProximas.length === 0 ? (
+              <p className="text-gray-400 text-center py-8">Nenhum recebimento próximo.</p>
+            ) : (
+              contasReceberProximas.map((conta) => (
+                <div key={conta.id} className="p-5 bg-gray-800/70 rounded-xl flex justify-between items-center border border-green-900/30 hover:border-green-600/50 transition">
+                  <div>
+                    <p className="font-bold text-lg">{conta.cliente?.nome || 'Sem cliente'}</p>
+                    <p className="text-sm text-gray-300 mt-1">Vencimento: {formatDate(conta.data_vencimento)}</p>
+                    <p className="text-sm text-green-400 font-medium mt-1">R$ {Number(conta.valor_parcela).toFixed(2)}</p>
+                  </div>
+                  <button onClick={() => router.push('/contas-receber')} className="bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg font-bold text-sm transition">
+                    Receber
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         </div>
-      )}
+      </div>
 
-      {/* ... resto do dashboard igual */}
+      {/* Gráficos */}
+      <div className="grid md:grid-cols-3 gap-8">
+        <div className="bg-gray-900/80 backdrop-blur-md rounded-3xl p-8 h-96 border border-gray-700/50">Gráfico Entradas vs Saídas</div>
+        <div className="bg-gray-900/80 backdrop-blur-md rounded-3xl p-8 h-96 border border-gray-700/50">Gráfico Recebimentos Mensais</div>
+        <div className="bg-gray-900/80 backdrop-blur-md rounded-3xl p-8 h-96 border border-gray-700/50">Gráfico Pagamentos Mensais</div>
+      </div>
     </div>
   );
+}
+
+function formatDate(iso: string) {
+  const dt = DateTime.fromISO(iso, { zone: 'America/Sao_Paulo' });
+  return dt.isValid ? dt.toFormat('dd/MM/yyyy') : '—';
 }
