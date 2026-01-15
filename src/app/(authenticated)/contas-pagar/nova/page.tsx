@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
+import { DateTime } from 'luxon';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,6 +19,12 @@ interface Fornecedor {
 interface Categoria {
   id: string;
   nome: string;
+}
+
+// Tipo explícito pro preview (vencimento sempre string)
+interface PreviewParcela {
+  valor: number;
+  vencimento: string;
 }
 
 export default function NovaContaPagar() {
@@ -37,13 +44,8 @@ export default function NovaContaPagar() {
   const [intervaloDias, setIntervaloDias] = useState('30');
   const [dataVencimento, setDataVencimento] = useState('');
   const [observacoes, setObservacoes] = useState('');
-  const [previewParcelas, setPreviewParcelas] = useState<{ valor: number; vencimento: string }[]>([]);
+  const [previewParcelas, setPreviewParcelas] = useState<PreviewParcela[]>([]);
   const router = useRouter();
-
-  const fornecedoresFiltrados = fornecedores.filter(f => 
-    f.nome.toLowerCase().includes(filtro.toLowerCase()) ||
-    f.codigo.toLowerCase().includes(filtro.toLowerCase())
-  );
 
   useEffect(() => {
     const checkSession = async () => {
@@ -80,6 +82,11 @@ export default function NovaContaPagar() {
     setCategorias(data || []);
   };
 
+  const fornecedoresFiltrados = fornecedores.filter(f => 
+    f.nome.toLowerCase().includes(filtro.toLowerCase()) ||
+    f.codigo.toLowerCase().includes(filtro.toLowerCase())
+  );
+
   const handleNovoFornecedor = async () => {
     if (!nomeNovo.trim() || !codigoNovo.trim()) {
       alert('Nome e código são obrigatórios');
@@ -99,7 +106,7 @@ export default function NovaContaPagar() {
 
       if (error) throw error;
 
-      alert('Fornecedor cadastrado!');
+      alert('Fornecedor cadastrado com sucesso!');
       await loadFornecedores(user.id);
       setFornecedorSelecionado(data);
       setFiltro(`${data.nome} (${data.codigo})`);
@@ -118,18 +125,20 @@ export default function NovaContaPagar() {
       const interval = Number(intervaloDias);
       const valorBase = Math.floor((total / numParcelas) * 100) / 100;
       const centavosExtras = Math.round((total - (valorBase * numParcelas)) * 100);
-      const preview = [];
+      const preview: PreviewParcela[] = [];
 
       for (let i = 1; i <= numParcelas; i++) {
         let valor = valorBase;
         if (i <= centavosExtras) valor += 0.01;
 
-        const [ano, mes, dia] = dataVencimento.split('-');
-        const baseDate = new Date(Number(ano), Number(mes) - 1, Number(dia));
-        baseDate.setDate(baseDate.getDate() + (interval * (i - 1)));
-        const dataStr = baseDate.toISOString().split('T')[0];
+        const dt = DateTime.fromISO(dataVencimento, { zone: 'America/Sao_Paulo' })
+          .plus({ days: interval * (i - 1) })
+          .set({ hour: 12, minute: 0, second: 0, millisecond: 0 });
 
-        preview.push({ valor: Number(valor.toFixed(2)), vencimento: dataStr });
+        preview.push({
+          valor: Number(valor.toFixed(2)),
+          vencimento: dt.toISODate() ?? 'Data inválida' // Fallback pra nunca ser null
+        });
       }
 
       setPreviewParcelas(preview);
@@ -149,20 +158,15 @@ export default function NovaContaPagar() {
 
     try {
       console.log('Iniciando salvamento com user_id:', user.id);
-      console.log('Preview parcelas:', previewParcelas);
 
       for (const [index, p] of previewParcelas.entries()) {
-        const [ano, mes, dia] = dataVencimento.split('-');
-        const baseDate = new Date(Number(ano), Number(mes) - 1, Number(dia));
-        baseDate.setDate(baseDate.getDate() + (Number(intervaloDias) * index));
-        baseDate.setHours(3, 0, 0, 0); // Compensação BRT
+        const dt = DateTime.fromISO(dataVencimento, { zone: 'America/Sao_Paulo' })
+          .plus({ days: Number(intervaloDias) * index })
+          .set({ hour: 12, minute: 0, second: 0, millisecond: 0 });
 
-        const anoV = baseDate.getUTCFullYear();
-        const mesV = String(baseDate.getUTCMonth() + 1).padStart(2, '0');
-        const diaV = String(baseDate.getUTCDate()).padStart(2, '0');
-        const dataVencStr = `${anoV}-${mesV}-${diaV}`;
+        const dataVencISO = dt.toISO();
 
-        console.log(`Inserindo parcela ${index + 1}:`, { dataVencStr, valor: p.valor });
+        console.log(`Parcela ${index + 1} - ISO salvo: ${dataVencISO}`);
 
         const { error } = await supabase.from('contas_pagar').insert({
           user_id: user.id,
@@ -172,7 +176,7 @@ export default function NovaContaPagar() {
           valor_parcela: p.valor,
           parcelas: previewParcelas.length,
           parcela_atual: index + 1,
-          data_vencimento: dataVencStr,
+          data_vencimento: dataVencISO,
           pago: false,
           categoria: categoriaSelecionada,
           observacoes: observacoes || null,
@@ -188,7 +192,7 @@ export default function NovaContaPagar() {
       router.push('/contas-pagar');
     } catch (error: any) {
       console.error('Erro completo ao salvar:', error);
-      alert('Erro ao salvar conta: ' + (error.message || 'Verifique o console do navegador'));
+      alert('Erro ao salvar conta: ' + (error.message || 'Verifique o console'));
     }
   };
 
