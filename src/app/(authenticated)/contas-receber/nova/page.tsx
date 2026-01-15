@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
+import { DateTime } from 'luxon';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,20 +16,34 @@ interface Cliente {
   codigo: string;
 }
 
+interface Categoria {
+  id: string;
+  nome: string;
+}
+
+interface PreviewParcela {
+  valor: number;
+  vencimento: string;
+}
+
 export default function NovaContaReceber() {
   const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [filtro, setFiltro] = useState('');
   const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null);
+  const [categoriaSelecionada, setCategoriaSelecionada] = useState('');
   const [modalNovo, setModalNovo] = useState(false);
   const [nomeNovo, setNomeNovo] = useState('');
   const [codigoNovo, setCodigoNovo] = useState('');
   const [fatura, setFatura] = useState('');
   const [valorTotal, setValorTotal] = useState('');
   const [parcelas, setParcelas] = useState('1');
+  const [intervaloDias, setIntervaloDias] = useState('30');
   const [dataVencimento, setDataVencimento] = useState('');
   const [observacoes, setObservacoes] = useState('');
-  const [previewParcelas, setPreviewParcelas] = useState<{ valor: number; vencimento: string }[]>([]);
+  const [previewParcelas, setPreviewParcelas] = useState<PreviewParcela[]>([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -39,7 +54,10 @@ export default function NovaContaReceber() {
         return;
       }
       setUser(data.session.user);
-      loadClientes(data.session.user.id);
+      console.log('User ID:', data.session.user.id);
+      await loadClientes(data.session.user.id);
+      await loadCategorias(data.session.user.id);
+      setLoading(false);
     };
     checkSession();
   }, [router]);
@@ -49,9 +67,18 @@ export default function NovaContaReceber() {
       .from('clientes')
       .select('id, nome, codigo')
       .eq('user_id', userId)
-      .order('nome', { ascending: true });
-
+      .order('nome');
     setClientes(data || []);
+  };
+
+  const loadCategorias = async (userId: string) => {
+    const { data } = await supabase
+      .from('categorias')
+      .select('id, nome')
+      .eq('user_id', userId)
+      .eq('tipo', 'receita') // Só receitas para contas a receber!
+      .order('nome');
+    setCategorias(data || []);
   };
 
   const clientesFiltrados = clientes.filter(c => 
@@ -81,7 +108,7 @@ export default function NovaContaReceber() {
       alert('Cliente cadastrado com sucesso!');
       await loadClientes(user.id);
       setClienteSelecionado(data);
-      setFiltro(data.nome + ' (' + data.codigo + ')');
+      setFiltro(`${data.nome} (${data.codigo})`);
       setModalNovo(false);
       setNomeNovo('');
       setCodigoNovo('');
@@ -91,73 +118,56 @@ export default function NovaContaReceber() {
   };
 
   useEffect(() => {
-    if (valorTotal && parcelas && dataVencimento && clienteSelecionado) {
+    if (valorTotal && parcelas && dataVencimento && intervaloDias && clienteSelecionado) {
       const total = Number(valorTotal);
       const numParcelas = Number(parcelas);
+      const interval = Number(intervaloDias);
       const valorBase = Math.floor((total / numParcelas) * 100) / 100;
       const centavosExtras = Math.round((total - (valorBase * numParcelas)) * 100);
-      const preview = [];
+      const preview: PreviewParcela[] = [];
 
       for (let i = 1; i <= numParcelas; i++) {
         let valor = valorBase;
-        if (i <= centavosExtras) {
-          valor += 0.01;
-        }
+        if (i <= centavosExtras) valor += 0.01;
 
-        // Preview usa Date local pra mostrar corretamente
-        const [ano, mes, dia] = dataVencimento.split('-');
-        const baseDate = new Date(Number(ano), Number(mes) - 1, Number(dia));
-        baseDate.setMonth(baseDate.getMonth() + (i - 1));
-        const dataStr = baseDate.toISOString().split('T')[0];
+        const dt = DateTime.fromISO(dataVencimento, { zone: 'America/Sao_Paulo' })
+          .plus({ days: interval * (i - 1) })
+          .set({ hour: 12, minute: 0, second: 0, millisecond: 0 });
 
-        preview.push({ valor: Number(valor.toFixed(2)), vencimento: dataStr });
+        preview.push({
+          valor: Number(valor.toFixed(2)),
+          vencimento: dt.toISODate() ?? 'Data inválida'
+        });
       }
 
       setPreviewParcelas(preview);
     } else {
       setPreviewParcelas([]);
     }
-  }, [valorTotal, parcelas, dataVencimento, clienteSelecionado]);
+  }, [valorTotal, parcelas, intervaloDias, dataVencimento, clienteSelecionado]);
 
   const handleSalvar = async () => {
-    if (!clienteSelecionado) {
-      alert('Selecione um cliente');
-      return;
-    }
-
-    if (!fatura.trim()) {
-      alert('Número da fatura é obrigatório');
-      return;
-    }
-
-    if (!/[a-zA-Z]/.test(fatura)) {
-      alert('A fatura deve conter pelo menos uma letra');
-      return;
-    }
-
-    if (!valorTotal || Number(valorTotal) <= 0) {
-      alert('Informe um valor válido');
-      return;
-    }
-
-    if (!dataVencimento) {
-      alert('Informe a data de vencimento');
-      return;
-    }
+    if (!clienteSelecionado) return alert('Selecione um cliente');
+    if (!categoriaSelecionada) return alert('Selecione uma categoria');
+    if (!fatura.trim()) return alert('Número da fatura obrigatório');
+    if (!/[a-zA-Z]/.test(fatura)) return alert('Fatura deve ter pelo menos uma letra');
+    if (!valorTotal || Number(valorTotal) <= 0) return alert('Valor válido obrigatório');
+    if (!dataVencimento) return alert('Data de vencimento obrigatória');
+    if (!intervaloDias || Number(intervaloDias) <= 0) return alert('Intervalo válido obrigatório');
 
     try {
+      console.log('Iniciando salvamento com user_id:', user.id);
+
       for (const [index, p] of previewParcelas.entries()) {
-        // Data em string pura - sem conversão automática de timezone
-        const [ano, mes, dia] = dataVencimento.split('-');
-        const baseDate = new Date(Number(ano), Number(mes) - 1, Number(dia));
-        baseDate.setMonth(baseDate.getMonth() + index);
+        const dt = DateTime.fromISO(dataVencimento, { zone: 'America/Sao_Paulo' })
+          .plus({ days: Number(intervaloDias) * index })
+          .set({ hour: 12, minute: 0, second: 0, millisecond: 0 });
 
-        const anoV = baseDate.getFullYear();
-        const mesV = String(baseDate.getMonth() + 1).padStart(2, '0');
-        const diaV = String(baseDate.getDate()).padStart(2, '0');
-        const dataVencStr = `${anoV}-${mesV}-${diaV}`;
+        const dataVencISO = dt.toISO();
 
-        await supabase.from('contas_receber').insert({
+        console.log(`Parcela ${index + 1} - ISO salvo: ${dataVencISO}`);
+
+        const { error } = await supabase.from('contas_receber').insert({
           user_id: user.id,
           cliente_id: clienteSelecionado.id,
           fatura: `${fatura.toUpperCase()}-${index + 1}/${previewParcelas.length}`,
@@ -165,20 +175,27 @@ export default function NovaContaReceber() {
           valor_parcela: p.valor,
           parcelas: previewParcelas.length,
           parcela_atual: index + 1,
-          data_vencimento: dataVencStr,  // ← Isso salva exatamente o dia certo!
+          data_vencimento: dataVencISO,
           recebido: false,
+          categoria: categoriaSelecionada,
           observacoes: observacoes || null,
         });
+
+        if (error) {
+          console.error('Erro na parcela', index + 1, ':', error);
+          throw error;
+        }
       }
 
       alert('Conta a receber criada com sucesso!');
       router.push('/contas-receber');
     } catch (error: any) {
-      alert('Erro ao salvar: ' + error.message);
+      console.error('Erro completo ao salvar:', error);
+      alert('Erro ao salvar conta: ' + (error.message || 'Verifique o console'));
     }
   };
 
-  if (!user) return null;
+  if (loading) return <div className="p-12 text-3xl text-white">Carregando...</div>;
 
   return (
     <div className="p-12">
@@ -233,13 +250,11 @@ export default function NovaContaReceber() {
               placeholder="Ex: REC001, BOLETO-A"
               className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
             />
-            <p className="text-gray-400 text-sm mt-2">
-              Obrigatório conter pelo menos uma letra
-            </p>
+            <p className="text-gray-400 text-sm mt-2">Obrigatório conter pelo menos uma letra</p>
           </div>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8 mb-8">
+        <div className="grid md:grid-cols-4 gap-8 mb-8">
           <div>
             <label className="block text-xl mb-2">Valor Total (R$)</label>
             <input
@@ -264,6 +279,17 @@ export default function NovaContaReceber() {
           </div>
 
           <div>
+            <label className="block text-xl mb-2">Intervalo de Dias</label>
+            <input
+              type="number"
+              min="1"
+              value={intervaloDias}
+              onChange={(e) => setIntervaloDias(e.target.value)}
+              className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
+            />
+          </div>
+
+          <div>
             <label className="block text-xl mb-2">1º Vencimento</label>
             <input
               type="date"
@@ -272,6 +298,20 @@ export default function NovaContaReceber() {
               className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
             />
           </div>
+        </div>
+
+        <div className="mb-8">
+          <label className="block text-xl mb-2">Categoria *</label>
+          <select
+            value={categoriaSelecionada}
+            onChange={(e) => setCategoriaSelecionada(e.target.value)}
+            className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
+          >
+            <option value="">Selecione uma categoria</option>
+            {categorias.map(cat => (
+              <option key={cat.id} value={cat.id}>{cat.nome}</option>
+            ))}
+          </select>
         </div>
 
         {previewParcelas.length > 0 && (
