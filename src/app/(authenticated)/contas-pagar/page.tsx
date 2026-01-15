@@ -23,6 +23,7 @@ interface Conta {
   data_pagamento?: string;
   juros?: number;
   observacoes?: string;
+  categoria?: string;
 }
 
 export default function ContasPagar() {
@@ -47,28 +48,39 @@ export default function ContasPagar() {
   }, [router]);
 
   const loadContas = async (userId: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('contas_pagar')
       .select('*, fornecedor:fornecedores(nome)')
       .eq('user_id', userId)
-      .eq('pago', false)  // só pendentes!
+      .eq('pago', false)
       .order('data_vencimento', { ascending: true });
 
-    // Correção do type (join às vezes retorna array)
+    if (error) {
+      console.error('Erro ao carregar contas a pagar:', error);
+      alert('Erro ao carregar contas: ' + error.message);
+      return;
+    }
+
     const formattedData = (data || []).map((conta: any) => ({
       ...conta,
       fornecedor: Array.isArray(conta.fornecedor) ? conta.fornecedor[0] : conta.fornecedor,
     }));
 
     setContas(formattedData);
+
+    // Debug no console
+    console.log('Contas a pagar carregadas:', formattedData.length);
+    console.log('Dados:', formattedData);
   };
 
   const contasFiltradas = contas.filter(conta => {
+    if (!busca.trim()) return true;
     const termo = busca.toLowerCase();
     return (
       conta.fornecedor?.nome?.toLowerCase().includes(termo) ||
       conta.fatura?.toLowerCase().includes(termo) ||
-      conta.observacoes?.toLowerCase().includes(termo)
+      conta.observacoes?.toLowerCase().includes(termo) ||
+      conta.categoria?.toLowerCase().includes(termo)
     );
   });
 
@@ -98,12 +110,13 @@ export default function ContasPagar() {
         valor: valorFinal,
         tipo: 'saida',
         data: hoje,
+        categoria: modalPagamento.categoria || 'Sem categoria',
       });
 
       alert('Conta paga e registrada no caixa com sucesso!');
       setModalPagamento(null);
       setValorJuros('0');
-      loadContas(user!.id);
+      loadContas(user!.id); // Recarrega a lista
     } catch (error: any) {
       alert('Erro ao pagar conta: ' + error.message);
     }
@@ -135,7 +148,7 @@ export default function ContasPagar() {
           type="text"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar por fornecedor, fatura ou observação..."
+          placeholder="Buscar por fornecedor, fatura, observação ou categoria..."
           className="w-full p-4 bg-gray-800 rounded-lg text-white text-xl"
         />
       </div>
@@ -143,13 +156,18 @@ export default function ContasPagar() {
       <div className="bg-gray-900 rounded-2xl overflow-hidden">
         <div className="divide-y divide-gray-800">
           {contasFiltradas.length === 0 ? (
-            <p className="p-12 text-center text-gray-400 text-2xl">Nenhuma conta a pagar pendente.</p>
+            <p className="p-12 text-center text-gray-400 text-2xl">
+              {busca.trim() 
+                ? 'Nenhuma conta encontrada com esse termo de busca.' 
+                : 'Nenhuma conta a pagar pendente no momento.'}
+            </p>
           ) : (
             contasFiltradas.map((conta) => (
               <div key={conta.id} className="p-8 hover:bg-gray-800 transition flex justify-between items-center">
                 <div>
                   <p className="text-3xl font-bold">{conta.fornecedor?.nome || 'Sem fornecedor'}</p>
                   <p className="text-gray-400 mt-2">Fatura #{conta.fatura}</p>
+                  {conta.categoria && <p className="text-gray-500">Categoria: {conta.categoria}</p>}
                   {conta.observacoes && <p className="text-gray-500">Obs: {conta.observacoes}</p>}
                   <p className="mt-2">
                     PARCELA {conta.parcela_atual}/{conta.parcelas}
@@ -180,7 +198,7 @@ export default function ContasPagar() {
             <h2 className="text-3xl font-bold text-red-400 mb-6 text-center">Pagar Conta</h2>
             
             <p className="text-xl mb-4">
-              <strong>Fornecedor:</strong> {modalPagamento.fornecedor?.nome}
+              <strong>Fornecedor:</strong> {modalPagamento.fornecedor?.nome || 'Sem fornecedor'}
             </p>
             <p className="text-xl mb-4">
               <strong>Fatura:</strong> #{modalPagamento.fatura}
