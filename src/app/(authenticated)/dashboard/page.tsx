@@ -25,6 +25,10 @@ export default function Dashboard() {
   const [novosReceberHoje, setNovosReceberHoje] = useState(0);
   const [entradasHoje, setEntradasHoje] = useState(0);
   const [saidasHoje, setSaidasHoje] = useState(0);
+
+  // Modais placeholder
+  const [modalEntrada, setModalEntrada] = useState(false);
+  const [modalSaida, setModalSaida] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -161,70 +165,70 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-black text-white pl-0 lg:pl-64 p-6 lg:p-12">
-      <h1 className="text-4xl lg:text-5xl font-bold mb-10 lg:mb-12">Dashboard</h1>
+      <h1 className="text-4xl lg:text-5xl font-bold mb-8 lg:mb-12">Dashboard</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-12">
-        {/* Card Saldo em Caixa - grande e quadrado */}
-        <div className="col-span-1 lg:col-span-2 bg-blue-900/50 backdrop-blur-md rounded-3xl p-8 text-center border border-blue-700/30 min-h-[380px] flex flex-col justify-between">
+        {/* Card principal Saldo em Caixa - grande e ocupa 2 colunas */}
+        <div className="col-span-1 lg:col-span-2 bg-blue-900/60 backdrop-blur-lg rounded-3xl p-8 lg:p-10 text-center border border-blue-600/40 shadow-2xl min-h-[420px] flex flex-col justify-between">
           <div>
-            <p className="text-2xl lg:text-3xl mb-4">Saldo em Caixa</p>
+            <p className="text-2xl lg:text-3xl mb-4 font-semibold">Saldo em Caixa</p>
             <p className="text-5xl lg:text-6xl font-bold mb-8">R$ {saldoCaixa.toFixed(2)}</p>
           </div>
-          <div className="flex justify-center gap-4 lg:gap-6 flex-wrap">
+          <div className="flex flex-wrap justify-center gap-4 lg:gap-6">
             <button 
               onClick={() => alert('Modal de Entrada - implemente aqui o modal real')} 
-              className="bg-green-600 hover:bg-green-700 px-6 py-4 rounded-xl font-bold text-lg"
+              className="bg-green-600 hover:bg-green-700 px-8 py-4 rounded-xl font-bold text-lg transition"
             >
               Entrada
             </button>
             <button 
               onClick={() => alert('Modal de Saída - implemente aqui o modal real')} 
-              className="bg-red-600 hover:bg-red-700 px-6 py-4 rounded-xl font-bold text-lg"
+              className="bg-red-600 hover:bg-red-700 px-8 py-4 rounded-xl font-bold text-lg transition"
             >
               Saída
             </button>
             <button 
               onClick={() => router.push('/lancamentos')} 
-              className="bg-gray-600 hover:bg-gray-700 px-6 py-4 rounded-xl font-bold text-lg"
+              className="bg-gray-600 hover:bg-gray-700 px-8 py-4 rounded-xl font-bold text-lg transition"
             >
               Movimentação
             </button>
           </div>
         </div>
 
-        {/* Outros cards - 2 linhas de 4 */}
-        <div className="bg-green-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-green-700/30">
+        {/* Outros 8 cards - 2 linhas de 4 */}
+        <div className="bg-green-900/60 backdrop-blur-lg rounded-3xl p-6 text-center border border-green-600/40 shadow-lg">
           <p className="text-xl mb-2">Total a Receber</p>
           <p className="text-4xl font-bold">R$ {totalReceber.toFixed(2)}</p>
         </div>
-        <div className="bg-red-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-red-700/30">
+        <div className="bg-red-900/60 backdrop-blur-lg rounded-3xl p-6 text-center border border-red-600/40 shadow-lg">
           <p className="text-xl mb-2">Total a Pagar</p>
           <p className="text-4xl font-bold">R$ {totalPagar.toFixed(2)}</p>
         </div>
-        <div className="bg-teal-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-teal-700/30">
+        <div className="bg-teal-900/60 backdrop-blur-lg rounded-3xl p-6 text-center border border-teal-600/40 shadow-lg">
           <p className="text-xl mb-2">Juros Recebidos</p>
           <p className="text-4xl font-bold">R$ {jurosRecebidos.toFixed(2)}</p>
           <p className="text-sm text-gray-300 mt-1">{percentJurosRecebidos}% dos últimos 30 dias</p>
         </div>
-        <div className="bg-purple-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-purple-700/30">
+        <div className="bg-purple-900/60 backdrop-blur-lg rounded-3xl p-6 text-center border border-purple-600/40 shadow-lg">
           <p className="text-xl mb-2">Juros Pagos</p>
           <p className="text-4xl font-bold">R$ {jurosPagos.toFixed(2)}</p>
           <p className="text-sm text-gray-300 mt-1">{percentJurosPagos}% dos últimos 30 dias</p>
         </div>
 
-        <div className="bg-teal-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-teal-700/30">
+        <div className="bg-teal-900/60 backdrop-blur-lg rounded-3xl p-6 text-center border border-teal-600/40 shadow-lg">
           <p className="text-xl mb-2">Entradas Hoje</p>
           <p className="text-3xl font-bold">R$ {entradasHoje.toFixed(2)}</p>
         </div>
-        <div className="bg-orange-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-orange-700/30">
+        <div className="bg-orange-900/60 backdrop-blur-lg rounded-3xl p-6 text-center border border-orange-600/40 shadow-lg">
           <p className="text-xl mb-2">Saídas Hoje</p>
           <p className="text-3xl font-bold">R$ {saidasHoje.toFixed(2)}</p>
         </div>
-        <div className="bg-purple-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-purple-700/30">
+        <div className="bg-purple-900/60 backdrop-blur-lg rounded-3xl p-6 text-center border border-purple-600/40 shadow-lg">
           <p className="text-xl mb-2">Novos a Pagar Hoje</p>
           <p className="text-3xl font-bold">{novosPagarHoje} contas</p>
         </div>
-        <div className="bg-green-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-green-700/30">
+        <div className="bg-green-900/60 backdrop-blur-lg rounded-3xl p-6 text-center border border-green-600/40 shadow-lg">
           <p className="text-xl mb-2">Novos a Receber Hoje</p>
           <p className="text-3xl font-bold">{novosReceberHoje} contas</p>
         </div>
