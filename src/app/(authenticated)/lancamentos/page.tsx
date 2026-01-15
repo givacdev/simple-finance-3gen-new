@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { useRouter } from 'next/navigation';
+import { DateTime } from 'luxon';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,113 +11,90 @@ const supabase = createClient(
 
 export default function Lancamentos() {
   const [user, setUser] = useState<any>(null);
-  const [tipo, setTipo] = useState<'pagar' | 'receber'>('pagar');
-  const [descricao, setDescricao] = useState('');
-  const [valor, setValor] = useState('');
-  const [data, setData] = useState('');
-  const [lancamentos, setLancamentos] = useState<any[]>([]);
-  const router = useRouter();
+  const [movimentos, setMovimentos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const checkSession = async () => {
       const { data } = await supabase.auth.getSession();
       if (!data.session) {
-        router.push('/');
+        window.location.href = '/';
         return;
       }
       setUser(data.session.user);
-      loadLancamentos(data.session.user.id);
+      await loadMovimentos(data.session.user.id);
+      setLoading(false);
     };
     checkSession();
-  }, [router]);
+  }, []);
 
-  const loadLancamentos = async (userId: string) => {
-    const table = tipo === 'pagar' ? 'contas_pagar' : 'contas_receber';
-    const { data } = await supabase
-      .from(table)
+  const loadMovimentos = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('movimentos_caixa')
       .select('*')
       .eq('user_id', userId)
-      .order('data_vencimento', { ascending: true });
-    setLancamentos(data || []);
+      .order('data', { ascending: false });
+
+    if (error) {
+      console.error('Erro ao carregar lançamentos:', error);
+      alert('Erro ao carregar os lançamentos. Verifique o console.');
+      return;
+    }
+
+    setMovimentos(data || []);
   };
 
-  const addLancamento = async () => {
-    if (!descricao || !valor || !data) return;
-    const table = tipo === 'pagar' ? 'contas_pagar' : 'contas_receber';
-    await supabase.from(table).insert({
-      user_id: user.id,
-      descricao,
-      vl_parcela: Number(valor),
-      data_vencimento: data,
-    });
-    setDescricao('');
-    setValor('');
-    setData('');
-    loadLancamentos(user.id);
+  const formatDate = (isoString: string | null) => {
+    if (!isoString) return '—';
+    const dt = DateTime.fromISO(isoString, { zone: 'America/Sao_Paulo' });
+    return dt.isValid ? dt.toFormat('dd/MM/yyyy HH:mm') : 'Data inválida';
   };
 
-  const deleteLancamento = async (id: string) => {
-    const table = tipo === 'pagar' ? 'contas_pagar' : 'contas_receber';
-    await supabase.from(table).delete().eq('id', id);
-    loadLancamentos(user.id);
-  };
-
-  if (!user) return null;
+  if (loading) {
+    return (
+      <div className="p-12 min-h-screen bg-black text-white flex items-center justify-center">
+        <p className="text-3xl">Carregando lançamentos...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-8">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-5xl font-bold mb-12">Lançamentos Financeiros</h1>
+    <div className="p-6 lg:p-12 min-h-screen bg-black text-white">
+      <h1 className="text-4xl lg:text-5xl font-bold mb-10">Lançamentos do Caixa</h1>
 
-        <div className="bg-gray-900 p-10 rounded-2xl mb-12">
-          <div className="flex gap-6 mb-10">
-            <button onClick={() => { setTipo('pagar'); loadLancamentos(user.id); }} className={`px-10 py-4 rounded-xl font-bold text-xl ${tipo === 'pagar' ? 'bg-red-600' : 'bg-gray-700'}`}>
-              Contas a Pagar
-            </button>
-            <button onClick={() => { setTipo('receber'); loadLancamentos(user.id); }} className={`px-10 py-4 rounded-xl font-bold text-xl ${tipo === 'receber' ? 'bg-green-600' : 'bg-gray-700'}`}>
-              Contas a Receber
-            </button>
+      <div className="bg-gray-900 rounded-3xl overflow-hidden border border-gray-800">
+        {movimentos.length === 0 ? (
+          <div className="p-12 text-center text-gray-400 text-xl">
+            Nenhum lançamento registrado ainda.
           </div>
-
-          <div className="space-y-6">
-            <div>
-              <label className="block text-xl mb-2">Descrição</label>
-              <input placeholder="Ex: Conta de luz, Salário cliente X" value={descricao} onChange={(e) => setDescricao(e.target.value.toUpperCase())} className="w-full p-4 bg-gray-800 rounded-lg text-xl" />
-            </div>
-            <div>
-              <label className="block text-xl mb-2">Valor</label>
-              <input type="number" placeholder="0,00" value={valor} onChange={(e) => setValor(e.target.value)} className="w-full p-4 bg-gray-800 rounded-lg text-xl" />
-            </div>
-            <div>
-              <label className="block text-xl mb-2">Data Vencimento</label>
-              <input type="date" value={data} onChange={(e) => setData(e.target.value)} className="w-full p-4 bg-gray-800 rounded-lg text-xl" />
-            </div>
-          </div>
-
-          <button onClick={addLancamento} className="mt-8 bg-blue-600 hover:bg-blue-700 px-12 py-5 rounded-xl font-bold text-2xl">
-            Adicionar Lançamento
-          </button>
-        </div>
-
-        <div className="space-y-6">
-          {lancamentos.length === 0 ? (
-            <p className="text-center text-gray-400 text-2xl py-20">Nenhum lançamento ainda. Comece adicionando acima!</p>
-          ) : (
-            lancamentos.map((l) => (
-              <div key={l.id} className="bg-gray-900 p-8 rounded-xl flex justify-between items-center">
-                <div>
-                  <p className="text-3xl font-bold">{l.descricao}</p>
-                  <p className="text-2xl text-gray-400 mt-2">
-                    R$ {Number(l.vl_parcela).toFixed(2)} - Vencimento: {new Date(l.data_vencimento).toLocaleDateString('pt-BR')}
+        ) : (
+          <div className="divide-y divide-gray-800">
+            {movimentos.map((mov) => (
+              <div
+                key={mov.id}
+                className="p-6 lg:p-8 hover:bg-gray-800 transition flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4"
+              >
+                <div className="flex-1">
+                  <p className="text-xl lg:text-2xl font-bold">{mov.descricao}</p>
+                  <p className="text-gray-400 mt-1">
+                    {formatDate(mov.data)} • {mov.tipo.toUpperCase()}
                   </p>
+                  {mov.categoria && (
+                    <p className="text-sm text-gray-500 mt-1">Categoria: {mov.categoria}</p>
+                  )}
                 </div>
-                <button onClick={() => deleteLancamento(l.id)} className="bg-red-600 hover:bg-red-700 px-8 py-4 rounded-xl font-bold text-xl">
-                  Excluir
-                </button>
+
+                <p
+                  className={`text-2xl lg:text-3xl font-bold whitespace-nowrap ${
+                    mov.tipo === 'entrada' ? 'text-green-400' : 'text-red-400'
+                  }`}
+                >
+                  {mov.tipo === 'entrada' ? '+' : '-'} R$ {Number(mov.valor).toFixed(2)}
+                </p>
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
