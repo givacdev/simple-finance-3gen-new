@@ -73,7 +73,7 @@ export default function Dashboard() {
       .eq('recebido', false);
     setTotalReceber(receber?.reduce((acc, c) => acc + (c.valor_parcela || 0), 0) || 0);
 
-    // Juros e totals 30 dias
+    // Juros e % últimos 30 dias
     const { data: pagarPagos30 } = await supabase
       .from('contas_pagar')
       .select('juros, valor_parcela')
@@ -159,118 +159,134 @@ export default function Dashboard() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <div className="p-6 lg:p-12 ml-0 lg:ml-64"> {/* Espaço pra sidebar */}
-        <h1 className="text-5xl font-bold mb-12">Dashboard</h1>
+    <div className="min-h-screen bg-black text-white pl-0 lg:pl-64 p-6 lg:p-12">
+      <h1 className="text-5xl font-bold mb-12">Dashboard</h1>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
-          <div className="bg-blue-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-blue-700/30 row-span-2 flex flex-col justify-between">
-            <p className="text-xl mb-2">Saldo em Caixa</p>
-            <p className="text-5xl font-bold mb-6">R$ {saldoCaixa.toFixed(2)}</p>
-            <div className="flex justify-center gap-4 flex-wrap">
-              <button className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-bold text-sm">Entrada</button>
-              <button className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-bold text-sm">Saída</button>
-              <button className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg font-bold text-sm">Movimentação</button>
-            </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
+        {/* Card Saldo em Caixa - maior, quadrado */}
+        <div className="bg-blue-900/50 backdrop-blur-md rounded-3xl p-8 text-center border border-blue-700/30 row-span-2 flex flex-col justify-between min-h-[400px]">
+          <div>
+            <p className="text-2xl mb-4">Saldo em Caixa</p>
+            <p className="text-6xl font-bold mb-8">R$ {saldoCaixa.toFixed(2)}</p>
           </div>
-
-          <div className="bg-green-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-green-700/30">
-            <p className="text-xl mb-2">Total a Receber</p>
-            <p className="text-4xl font-bold">R$ {totalReceber.toFixed(2)}</p>
-          </div>
-          <div className="bg-red-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-red-700/30">
-            <p className="text-xl mb-2">Total a Pagar</p>
-            <p className="text-4xl font-bold">R$ {totalPagar.toFixed(2)}</p>
-          </div>
-          <div className="bg-teal-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-teal-700/30">
-            <p className="text-xl mb-2">Juros Recebidos</p>
-            <p className="text-4xl font-bold">R$ {jurosRecebidos.toFixed(2)}</p>
-            <p className="text-sm text-gray-300 mt-1">{percentJurosRecebidos}% do total recebido nos últimos 30 dias</p>
-          </div>
-          <div className="bg-purple-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-purple-700/30">
-            <p className="text-xl mb-2">Juros Pagos</p>
-            <p className="text-4xl font-bold">R$ {jurosPagos.toFixed(2)}</p>
-            <p className="text-sm text-gray-300 mt-1">{percentJurosPagos}% do total pago nos últimos 30 dias</p>
+          <div className="flex justify-center gap-6 flex-wrap">
+            <button 
+              onClick={() => alert('Modal de Entrada - em breve!')} 
+              className="bg-green-600 hover:bg-green-700 px-6 py-4 rounded-xl font-bold text-lg"
+            >
+              Entrada
+            </button>
+            <button 
+              onClick={() => alert('Modal de Saída - em breve!')} 
+              className="bg-red-600 hover:bg-red-700 px-6 py-4 rounded-xl font-bold text-lg"
+            >
+              Saída
+            </button>
+            <button 
+              onClick={() => router.push('/movimentos')} 
+              className="bg-gray-600 hover:bg-gray-700 px-6 py-4 rounded-xl font-bold text-lg"
+            >
+              Movimentação
+            </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-          <div className="bg-teal-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-teal-700/30">
-            <p className="text-xl mb-2">Entradas Hoje</p>
-            <p className="text-3xl font-bold">R$ {entradasHoje.toFixed(2)}</p>
-          </div>
-          <div className="bg-orange-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-orange-700/30">
-            <p className="text-xl mb-2">Saídas Hoje</p>
-            <p className="text-3xl font-bold">R$ {saidasHoje.toFixed(2)}</p>
-          </div>
-          <div className="bg-purple-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-purple-700/30">
-            <p className="text-xl mb-2">Novos a Pagar Hoje</p>
-            <p className="text-3xl font-bold">{novosPagarHoje} contas</p>
-            <p className="text-sm">R$ 0,00</p>
-          </div>
-          <div className="bg-green-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-green-700/30">
-            <p className="text-xl mb-2">Novos a Receber Hoje</p>
-            <p className="text-3xl font-bold">{novosReceberHoje} contas</p>
-            <p className="text-sm">R$ 0,00</p>
-          </div>
+        {/* Outros cards */}
+        <div className="bg-green-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-green-700/30">
+          <p className="text-xl mb-2">Total a Receber</p>
+          <p className="text-4xl font-bold">R$ {totalReceber.toFixed(2)}</p>
         </div>
+        <div className="bg-red-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-red-700/30">
+          <p className="text-xl mb-2">Total a Pagar</p>
+          <p className="text-4xl font-bold">R$ {totalPagar.toFixed(2)}</p>
+        </div>
+        <div className="bg-teal-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-teal-700/30">
+          <p className="text-xl mb-2">Juros Recebidos</p>
+          <p className="text-4xl font-bold">R$ {jurosRecebidos.toFixed(2)}</p>
+          <p className="text-sm text-gray-300 mt-1">{percentJurosRecebidos}% do total recebido nos últimos 30 dias</p>
+        </div>
+        <div className="bg-purple-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-purple-700/30">
+          <p className="text-xl mb-2">Juros Pagos</p>
+          <p className="text-4xl font-bold">R$ {jurosPagos.toFixed(2)}</p>
+          <p className="text-sm text-gray-300 mt-1">{percentJurosPagos}% do total pago nos últimos 30 dias</p>
+        </div>
+      </div>
 
-        <div className="grid md:grid-cols-2 gap-8 mb-12">
-          <div className="bg-gray-900/80 backdrop-blur-md rounded-3xl p-8 border border-gray-700/50">
-            <h3 className="text-2xl font-bold text-red-400 mb-6 flex items-center">
-              <span className="mr-3 text-3xl">⚠️</span> Próximos Vencimentos (7 dias + Vencidas)
-            </h3>
-            <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-              {contasPagarProximas.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">Nenhum vencimento próximo.</p>
-              ) : (
-                contasPagarProximas.map((conta) => (
-                  <div key={conta.id} className="p-5 bg-gray-800/70 rounded-xl flex justify-between items-center border border-red-900/30 hover:border-red-600/50 transition">
-                    <div>
-                      <p className="font-bold text-lg">{conta.fornecedor?.nome || 'Sem fornecedor'}</p>
-                      <p className="text-sm text-gray-300 mt-1">Vencimento: {formatDate(conta.data_vencimento)}</p>
-                      <p className="text-sm text-red-400 font-medium mt-1">R$ {Number(conta.valor_parcela).toFixed(2)}</p>
-                    </div>
-                    <button onClick={() => router.push('/contas-pagar')} className="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-bold text-sm transition">
-                      Pagar
-                    </button>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        <div className="bg-teal-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-teal-700/30">
+          <p className="text-xl mb-2">Entradas Hoje</p>
+          <p className="text-3xl font-bold">R$ {entradasHoje.toFixed(2)}</p>
+        </div>
+        <div className="bg-orange-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-orange-700/30">
+          <p className="text-xl mb-2">Saídas Hoje</p>
+          <p className="text-3xl font-bold">R$ {saidasHoje.toFixed(2)}</p>
+        </div>
+        <div className="bg-purple-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-purple-700/30">
+          <p className="text-xl mb-2">Novos a Pagar Hoje</p>
+          <p className="text-3xl font-bold">{novosPagarHoje} contas</p>
+        </div>
+        <div className="bg-green-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-green-700/30">
+          <p className="text-xl mb-2">Novos a Receber Hoje</p>
+          <p className="text-3xl font-bold">{novosReceberHoje} contas</p>
+        </div>
+      </div>
+
+      {/* Cards Próximos */}
+      <div className="grid md:grid-cols-2 gap-8 mb-12">
+        <div className="bg-gray-900/80 backdrop-blur-md rounded-3xl p-8 border border-gray-700/50">
+          <h3 className="text-2xl font-bold text-red-400 mb-6 flex items-center">
+            <span className="mr-3 text-3xl">⚠️</span> Próximos Vencimentos (7 dias + Vencidas)
+          </h3>
+          <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+            {contasPagarProximas.length === 0 ? (
+              <p className="text-gray-400 text-center py-8">Nenhum vencimento próximo.</p>
+            ) : (
+              contasPagarProximas.map((conta) => (
+                <div key={conta.id} className="p-5 bg-gray-800/70 rounded-xl flex justify-between items-center border border-red-900/30 hover:border-red-600/50 transition">
+                  <div>
+                    <p className="font-bold text-lg">{conta.fornecedor?.nome || 'Sem fornecedor'}</p>
+                    <p className="text-sm text-gray-300 mt-1">Vencimento: {formatDate(conta.data_vencimento)}</p>
+                    <p className="text-sm text-red-400 font-medium mt-1">R$ {Number(conta.valor_parcela).toFixed(2)}</p>
                   </div>
-                ))
-              )}
-            </div>
+                  <button onClick={() => router.push('/contas-pagar')} className="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-bold text-sm transition">
+                    Pagar
+                  </button>
+                </div>
+              ))
+            )}
           </div>
+        </div>
 
-          <div className="bg-gray-900/80 backdrop-blur-md rounded-3xl p-8 border border-gray-700/50">
-            <h3 className="text-2xl font-bold text-green-400 mb-6 flex items-center">
-              <span className="mr-3 text-3xl">📅</span> Próximos Recebimentos (7 dias + Vencidos)
-            </h3>
-            <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-              {contasReceberProximas.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">Nenhum recebimento próximo.</p>
-              ) : (
-                contasReceberProximas.map((conta) => (
-                  <div key={conta.id} className="p-5 bg-gray-800/70 rounded-xl flex justify-between items-center border border-green-900/30 hover:border-green-600/50 transition">
-                    <div>
-                      <p className="font-bold text-lg">{conta.cliente?.nome || 'Sem cliente'}</p>
-                      <p className="text-sm text-gray-300 mt-1">Vencimento: {formatDate(conta.data_vencimento)}</p>
-                      <p className="text-sm text-green-400 font-medium mt-1">R$ {Number(conta.valor_parcela).toFixed(2)}</p>
-                    </div>
-                    <button onClick={() => router.push('/contas-receber')} className="bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg font-bold text-sm transition">
-                      Receber
-                    </button>
+        <div className="bg-gray-900/80 backdrop-blur-md rounded-3xl p-8 border border-gray-700/50">
+          <h3 className="text-2xl font-bold text-green-400 mb-6 flex items-center">
+            <span className="mr-3 text-3xl">📅</span> Próximos Recebimentos (7 dias + Vencidos)
+          </h3>
+          <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+            {contasReceberProximas.length === 0 ? (
+              <p className="text-gray-400 text-center py-8">Nenhum recebimento próximo.</p>
+            ) : (
+              contasReceberProximas.map((conta) => (
+                <div key={conta.id} className="p-5 bg-gray-800/70 rounded-xl flex justify-between items-center border border-green-900/30 hover:border-green-600/50 transition">
+                  <div>
+                    <p className="font-bold text-lg">{conta.cliente?.nome || 'Sem cliente'}</p>
+                    <p className="text-sm text-gray-300 mt-1">Vencimento: {formatDate(conta.data_vencimento)}</p>
+                    <p className="text-sm text-green-400 font-medium mt-1">R$ {Number(conta.valor_parcela).toFixed(2)}</p>
                   </div>
-                ))
-              )}
-            </div>
+                  <button onClick={() => router.push('/contas-receber')} className="bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg font-bold text-sm transition">
+                    Receber
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         </div>
+      </div>
 
-        {/* Gráficos placeholder */}
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="bg-gray-900/80 backdrop-blur-md rounded-3xl p-8 h-96 border border-gray-700/50">Gráfico Entradas vs Saídas</div>
-          <div className="bg-gray-900/80 backdrop-blur-md rounded-3xl p-8 h-96 border border-gray-700/50">Gráfico Recebimentos Mensais</div>
-          <div className="bg-gray-900/80 backdrop-blur-md rounded-3xl p-8 h-96 border border-gray-700/50">Gráfico Pagamentos Mensais</div>
-        </div>
+      {/* Gráficos */}
+      <div className="grid md:grid-cols-3 gap-8">
+        <div className="bg-gray-900/80 backdrop-blur-md rounded-3xl p-8 h-96 border border-gray-700/50">Gráfico Entradas vs Saídas</div>
+        <div className="bg-gray-900/80 backdrop-blur-md rounded-3xl p-8 h-96 border border-gray-700/50">Gráfico Recebimentos Mensais</div>
+        <div className="bg-gray-900/80 backdrop-blur-md rounded-3xl p-8 h-96 border border-gray-700/50">Gráfico Pagamentos Mensais</div>
       </div>
     </div>
   );
