@@ -17,6 +17,8 @@ export default function Dashboard() {
   const [totalPagar, setTotalPagar] = useState(0);
   const [jurosRecebidos, setJurosRecebidos] = useState(0);
   const [jurosPagos, setJurosPagos] = useState(0);
+  const [totalRecebido30Dias, setTotalRecebido30Dias] = useState(0);
+  const [totalPago30Dias, setTotalPago30Dias] = useState(0);
   const [contasPagarProximas, setContasPagarProximas] = useState<any[]>([]);
   const [contasReceberProximas, setContasReceberProximas] = useState<any[]>([]);
   const [novosPagarHoje, setNovosPagarHoje] = useState(0);
@@ -43,6 +45,7 @@ export default function Dashboard() {
     const hojeInicio = hoje.startOf('day').toISO();
     const hojeFim = hoje.endOf('day').toISO();
     const seteDias = hoje.plus({ days: 7 }).endOf('day').toISO();
+    const trintaDiasAtras = hoje.minus({ days: 30 }).startOf('day').toISO();
 
     // Saldo Caixa
     const { data: movimentos } = await supabase
@@ -70,20 +73,28 @@ export default function Dashboard() {
       .eq('recebido', false);
     setTotalReceber(receber?.reduce((acc, c) => acc + (c.valor_parcela || 0), 0) || 0);
 
-    // Juros
-    const { data: jurosPagosData } = await supabase
+    // Juros e totals 30 dias
+    const { data: pagarPagos30 } = await supabase
       .from('contas_pagar')
-      .select('juros')
+      .select('juros, valor_parcela')
       .eq('user_id', userId)
-      .eq('pago', true);
-    setJurosPagos(jurosPagosData?.reduce((acc, c) => acc + (c.juros || 0), 0) || 0);
+      .eq('pago', true)
+      .gte('data_pagamento', trintaDiasAtras);
+    const jurosP = pagarPagos30?.reduce((acc, c) => acc + (c.juros || 0), 0) || 0;
+    const totalP = pagarPagos30?.reduce((acc, c) => acc + (c.valor_parcela || 0), 0) || 0;
+    setJurosPagos(jurosP);
+    setTotalPago30Dias(totalP);
 
-    const { data: jurosRecebidosData } = await supabase
+    const { data: receberRecebidos30 } = await supabase
       .from('contas_receber')
-      .select('juros')
+      .select('juros, valor_parcela')
       .eq('user_id', userId)
-      .eq('recebido', true);
-    setJurosRecebidos(jurosRecebidosData?.reduce((acc, c) => acc + (c.juros || 0), 0) || 0);
+      .eq('recebido', true)
+      .gte('data_recebimento', trintaDiasAtras);
+    const jurosR = receberRecebidos30?.reduce((acc, c) => acc + (c.juros || 0), 0) || 0;
+    const totalR = receberRecebidos30?.reduce((acc, c) => acc + (c.valor_parcela || 0), 0) || 0;
+    setJurosRecebidos(jurosR);
+    setTotalRecebido30Dias(totalR);
 
     // Próximos Vencimentos
     const { data: pagarProximas } = await supabase
@@ -142,18 +153,27 @@ export default function Dashboard() {
     return DateTime.fromISO(iso, { zone: 'America/Sao_Paulo' }).toFormat('dd/MM/yyyy');
   };
 
+  const percentJurosRecebidos = totalRecebido30Dias > 0 ? ((jurosRecebidos / totalRecebido30Dias) * 100).toFixed(1) : 0;
+  const percentJurosPagos = totalPago30Dias > 0 ? ((jurosPagos / totalPago30Dias) * 100).toFixed(1) : 0;
+
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-black text-white pl-64"> {/* Espaço pra sidebar */}
-      <div className="p-12">
+    <div className="min-h-screen bg-black text-white">
+      <div className="p-6 lg:p-12 ml-0 lg:ml-64"> {/* Espaço pra sidebar */}
         <h1 className="text-5xl font-bold mb-12">Dashboard</h1>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-12">
-          <div className="bg-blue-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-blue-700/30">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
+          <div className="bg-blue-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-blue-700/30 row-span-2 flex flex-col justify-between">
             <p className="text-xl mb-2">Saldo em Caixa</p>
-            <p className="text-4xl font-bold">R$ {saldoCaixa.toFixed(2)}</p>
+            <p className="text-5xl font-bold mb-6">R$ {saldoCaixa.toFixed(2)}</p>
+            <div className="flex justify-center gap-4 flex-wrap">
+              <button className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-bold text-sm">Entrada</button>
+              <button className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-bold text-sm">Saída</button>
+              <button className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg font-bold text-sm">Movimentação</button>
+            </div>
           </div>
+
           <div className="bg-green-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-green-700/30">
             <p className="text-xl mb-2">Total a Receber</p>
             <p className="text-4xl font-bold">R$ {totalReceber.toFixed(2)}</p>
@@ -165,10 +185,12 @@ export default function Dashboard() {
           <div className="bg-teal-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-teal-700/30">
             <p className="text-xl mb-2">Juros Recebidos</p>
             <p className="text-4xl font-bold">R$ {jurosRecebidos.toFixed(2)}</p>
+            <p className="text-sm text-gray-300 mt-1">{percentJurosRecebidos}% do total recebido nos últimos 30 dias</p>
           </div>
           <div className="bg-purple-900/50 backdrop-blur-md rounded-3xl p-6 text-center border border-purple-700/30">
             <p className="text-xl mb-2">Juros Pagos</p>
             <p className="text-4xl font-bold">R$ {jurosPagos.toFixed(2)}</p>
+            <p className="text-sm text-gray-300 mt-1">{percentJurosPagos}% do total pago nos últimos 30 dias</p>
           </div>
         </div>
 
@@ -209,7 +231,7 @@ export default function Dashboard() {
                       <p className="text-sm text-gray-300 mt-1">Vencimento: {formatDate(conta.data_vencimento)}</p>
                       <p className="text-sm text-red-400 font-medium mt-1">R$ {Number(conta.valor_parcela).toFixed(2)}</p>
                     </div>
-                    <button className="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-bold text-sm transition">
+                    <button onClick={() => router.push('/contas-pagar')} className="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-bold text-sm transition">
                       Pagar
                     </button>
                   </div>
@@ -233,7 +255,7 @@ export default function Dashboard() {
                       <p className="text-sm text-gray-300 mt-1">Vencimento: {formatDate(conta.data_vencimento)}</p>
                       <p className="text-sm text-green-400 font-medium mt-1">R$ {Number(conta.valor_parcela).toFixed(2)}</p>
                     </div>
-                    <button className="bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg font-bold text-sm transition">
+                    <button onClick={() => router.push('/contas-receber')} className="bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg font-bold text-sm transition">
                       Receber
                     </button>
                   </div>
