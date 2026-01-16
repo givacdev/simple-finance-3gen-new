@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { DateTime } from 'luxon';
 
-// Força Tailwind a gerar todas as classes usadas no grid
+// Força Tailwind a gerar todas as classes usadas no grid (div fantasma)
 <div className="hidden lg:grid-cols-5 lg:col-span-2 lg:col-span-1 lg:col-span-3 lg:row-span-2"></div>
 
 const supabase = createClient(
