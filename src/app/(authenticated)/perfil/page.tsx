@@ -3,11 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabase } from '@/lib/supabaseClient';
 
 export default function Perfil() {
   const [user, setUser] = useState<any>(null);

@@ -4,19 +4,24 @@ module.exports = {
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/**/*.{js,ts,jsx,tsx,mdx}',
+  ],
+  safelist: [
+    'grid-cols-1',
+    'grid-cols-5',
+    'col-span-1',
+    'col-span-2',
+    'lg:col-span-2',
+    'min-h-[420px]',
+    'backdrop-blur-lg',
+    'shadow-2xl',
   ],
   theme: {
     extend: {},
   },
   plugins: [],
-  safelist: [
-    'lg:grid-cols-5',
-    'lg:col-span-2',
-    'lg:col-span-1',
-    'lg:col-span-3',
-    'lg:row-span-2',
-    'col-span-1',
-    'min-h-[420px]',
-    // Adicione mais classes se precisar (ex: 'backdrop-blur-lg')
-  ],
+  // Temporário: desativa purge pra forçar todas classes (depois volta pra true)
+  future: {
+    purgeLayersByDefault: false,
+  },
 }
