@@ -1,10 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Desativa Turbopack e força Webpack clássico (mais estável)
-  experimental: {
-    turbopack: false,
-  },
+  // NÃO coloca nada em experimental.turbopack – deixa o Vercel decidir
+  // Se quiser forçar Webpack clássico (mais estável), usa isso abaixo:
+  // webpack: (config) => {
+  //   return config;
+  // },
 };
 
 module.exports = nextConfig;
