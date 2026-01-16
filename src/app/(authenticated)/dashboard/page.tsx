@@ -26,7 +26,24 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-black text-white p-6 lg:p-12">
       <h1 className="text-4xl lg:text-5xl font-bold mb-12">Dashboard</h1>
-
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          <div className="bg-green-900/50 p-6 rounded-3xl text-center">
+            <p className="text-xl">Total a Receber</p>
+            <p className="text-4xl font-bold">R$ 1150.66</p>
+          </div>
+          <div className="bg-red-900/50 p-6 rounded-3xl text-center">
+            <p className="text-xl">Total a Pagar</p>
+            <p className="text-4xl font-bold">R$ 3218.30</p>
+          </div>
+          <div className="bg-teal-900/50 p-6 rounded-3xl text-center">
+            <p className="text-xl">Juros Recebidos</p>
+            <p className="text-4xl font-bold">R$ 22.50</p>
+          </div>
+          <div className="bg-purple-900/50 p-6 rounded-3xl text-center">
+            <p className="text-xl">Juros Pagos</p>
+            <p className="text-4xl font-bold">R$ 32.50</p>
+          </div>
+        </div>
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Saldo grande e quadrado */}
         <div className="w-full lg:w-1/3 aspect-square bg-blue-900 rounded-3xl p-8 flex flex-col justify-center text-center">
