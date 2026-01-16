@@ -2,8 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Removido o @plugin inválido e o import comentado de tw-animate-css */
-/* O tailwindcss-animate funciona apenas com configuração no tailwind.config.js */
+/* Removido o @plugin inválido - animações vão funcionar com configuração no tailwind.config.js */
+/* NÃO precisa de @import "tw-animate-css" nem @plugin aqui */
 
 :root {
   --radius: 0.625rem;
