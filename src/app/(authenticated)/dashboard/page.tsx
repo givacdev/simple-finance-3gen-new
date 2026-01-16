@@ -5,6 +5,9 @@ import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { DateTime } from 'luxon';
 
+// Força Tailwind a gerar todas as classes usadas no grid
+<div className="hidden lg:grid-cols-5 lg:col-span-2 lg:col-span-1 lg:col-span-3 lg:row-span-2"></div>
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -25,10 +28,6 @@ export default function Dashboard() {
   const [novosReceberHoje, setNovosReceberHoje] = useState(0);
   const [entradasHoje, setEntradasHoje] = useState(0);
   const [saidasHoje, setSaidasHoje] = useState(0);
-
-  // Modais placeholder
-  const [modalEntrada, setModalEntrada] = useState(false);
-  const [modalSaida, setModalSaida] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -168,7 +167,7 @@ export default function Dashboard() {
       <h1 className="text-4xl lg:text-5xl font-bold mb-8 lg:mb-12">Dashboard</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-12">
-        {/* Card principal Saldo em Caixa - grande e ocupa 2 colunas */}
+        {/* Card principal Saldo em Caixa - grande, quadrado, 2 colunas */}
         <div className="col-span-1 lg:col-span-2 bg-blue-900/60 backdrop-blur-lg rounded-3xl p-8 lg:p-10 text-center border border-blue-600/40 shadow-2xl min-h-[420px] flex flex-col justify-between">
           <div>
             <p className="text-2xl lg:text-3xl mb-4 font-semibold">Saldo em Caixa</p>
@@ -176,13 +175,13 @@ export default function Dashboard() {
           </div>
           <div className="flex flex-wrap justify-center gap-4 lg:gap-6">
             <button 
-              onClick={() => alert('Modal de Entrada - implemente aqui o modal real')} 
+              onClick={() => alert('Modal de Entrada - em desenvolvimento')} 
               className="bg-green-600 hover:bg-green-700 px-8 py-4 rounded-xl font-bold text-lg transition"
             >
               Entrada
             </button>
             <button 
-              onClick={() => alert('Modal de Saída - implemente aqui o modal real')} 
+              onClick={() => alert('Modal de Saída - em desenvolvimento')} 
               className="bg-red-600 hover:bg-red-700 px-8 py-4 rounded-xl font-bold text-lg transition"
             >
               Saída
@@ -196,7 +195,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Outros 8 cards - 2 linhas de 4 */}
+        {/* 8 cards menores - 2 linhas de 4 */}
         <div className="bg-green-900/60 backdrop-blur-lg rounded-3xl p-6 text-center border border-green-600/40 shadow-lg">
           <p className="text-xl mb-2">Total a Receber</p>
           <p className="text-4xl font-bold">R$ {totalReceber.toFixed(2)}</p>
